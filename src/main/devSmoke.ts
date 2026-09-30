@@ -115,23 +115,21 @@ export async function runSmoke(win: BrowserWindow, dir: string) {
     log(`Name column width: ${widthBefore} -> ${await nameWidth()}`)
 
     log(`columns before reorder: ${await js<string>(headerNames)}`)
-    await js(`(() => {
-      const headers = [...document.querySelectorAll('.thead .th')]
-      const source = headers.find((h) => h.querySelector('.th-label')?.textContent === 'Owner.Name')
-      const target = headers.find((h) => h.querySelector('.th-label')?.textContent === 'Id')
-      const dt = new DataTransfer()
-      const r = target.getBoundingClientRect()
-      const at = { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + 2, clientY: r.top + 5 }
-      source.dispatchEvent(new DragEvent('dragstart', at))
-      return new Promise((resolve) => setTimeout(() => {
-        target.dispatchEvent(new DragEvent('dragover', at))
-        setTimeout(() => {
-          target.dispatchEvent(new DragEvent('drop', at))
-          source.dispatchEvent(new DragEvent('dragend', at))
-          resolve(true)
-        }, 50)
-      }, 50))
-    })()`)
+    // Live reorder with a real mouse drag: Owner.Name onto the left half of Id; the order must change mid-drag.
+    const headerCenter = (name: string) =>
+      js<{ x: number; y: number }>(
+        `(() => { const r = [...document.querySelectorAll('.thead .th')].find((h) => h.querySelector('.th-label')?.textContent === ${JSON.stringify(name)}).getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) } })()`
+      )
+    const src = await headerCenter('Owner.Name')
+    const idHeader = await rect('.thead .th:not(.rownum)')
+    const targetX = Math.round(idHeader.x + 8)
+    wc.sendInputEvent({ type: 'mouseDown', x: src.x, y: src.y, button: 'left', clickCount: 1 })
+    for (let i = 1; i <= 10; i++) {
+      wc.sendInputEvent({ type: 'mouseMove', x: Math.round(src.x + ((targetX - src.x) * i) / 10), y: src.y, button: 'left' })
+      await sleep(40)
+    }
+    log(`columns during drag (live): ${await js<string>(headerNames)}`)
+    wc.sendInputEvent({ type: 'mouseUp', x: targetX, y: src.y, button: 'left', clickCount: 1 })
     await sleep(200)
     log(`columns after reorder: ${await js<string>(headerNames)}`)
     await shot('1b-layout')

@@ -73,10 +73,9 @@ function Cell({ value, column, onOpenSubquery }: { value: FlatCell | undefined; 
 
 export function DataTable({ table, layout, onOpenSubquery }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const theadRef = useRef<HTMLDivElement>(null)
+  /** Column being dragged to a new position (reordered live while the mouse moves). */
   const [dragging, setDragging] = useState<string | null>(null)
-  // A mouse press on a resize grip must not turn into a header drag (reorder).
-  const resizing = useRef(false)
-  const [dropTarget, setDropTarget] = useState<{ column: string; side: 'before' | 'after' } | null>(null)
   const columns = layout.order
   const widthOf = (c: string) => layout.widths[c] ?? autoWidth(table, c)
   const rowNumWidth = Math.max(40, String(table.rows.length).length * 8 + 16)
@@ -94,11 +93,9 @@ export function DataTable({ table, layout, onOpenSubquery }: Props) {
     e.stopPropagation()
     const startX = e.clientX
     const startWidth = widthOf(column)
-    resizing.current = true
     document.body.classList.add('col-resizing')
     const onMove = (ev: MouseEvent) => layout.setWidth(column, resizeWidth(startWidth, ev.clientX - startX))
     const onUp = () => {
-      resizing.current = false
       document.body.classList.remove('col-resizing')
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
@@ -107,67 +104,81 @@ export function DataTable({ table, layout, onOpenSubquery }: Props) {
     window.addEventListener('mouseup', onUp)
   }
 
-  const sideFor = (e: React.DragEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    return e.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
+  /**
+   * Live reorder: after a few pixels of movement the pressed header follows the mouse; whenever the pointer crosses
+   * the middle of another header, the column jumps to that side of it (data cells move with it immediately).
+   */
+  const startReorder = (e: ReactMouseEvent, column: string) => {
+    if (e.button !== 0) return
+    const startX = e.clientX
+    let active = false
+    const onMove = (ev: MouseEvent) => {
+      if (!active) {
+        if (Math.abs(ev.clientX - startX) < 4) return
+        active = true
+        setDragging(column)
+        document.body.classList.add('col-dragging')
+      }
+      autoScroll(ev.clientX)
+      const head = theadRef.current
+      if (!head) return
+      const headers = [...head.querySelectorAll<HTMLElement>('[data-col]')]
+      const from = headers.findIndex((h) => h.dataset.col === column)
+      const target = headers.find((h) => {
+        const r = h.getBoundingClientRect()
+        return ev.clientX >= r.left && ev.clientX < r.right
+      })
+      if (!target || target.dataset.col === column) return
+      const to = headers.indexOf(target)
+      const r = target.getBoundingClientRect()
+      const mid = r.left + r.width / 2
+      if (from < to && ev.clientX > mid) layout.move(column, target.dataset.col!, 'after')
+      else if (from > to && ev.clientX < mid) layout.move(column, target.dataset.col!, 'before')
+    }
+    const onUp = () => {
+      setDragging(null)
+      document.body.classList.remove('col-dragging')
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  /** Scroll horizontally while dragging near the grid's left or right edge. */
+  const autoScroll = (clientX: number) => {
+    const el = scrollRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    if (clientX < r.left + 40) el.scrollLeft -= 20
+    else if (clientX > r.right - 40) el.scrollLeft += 20
   }
 
   return (
     <div className="table-scroll" ref={scrollRef}>
       <div style={{ width: totalWidth, height: ROW_HEIGHT + virtualizer.getTotalSize(), position: 'relative' }}>
-        <div className="thead" style={{ height: ROW_HEIGHT, width: totalWidth }}>
+        <div className="thead" ref={theadRef} style={{ height: ROW_HEIGHT, width: totalWidth }}>
           <div className="th rownum" style={{ width: rowNumWidth }}>
             #
           </div>
-          {columns.map((c) => {
-            const drop = dropTarget?.column === c && dragging !== c ? dropTarget.side : null
-            return (
-              <div
-                key={c}
-                className={`th${dragging === c ? ' dragging' : ''}${drop ? ` drop-${drop}` : ''}`}
-                style={{ width: widthOf(c) }}
-                title={`${c} — drag to reorder`}
-                draggable
-                onDragStart={(e) => {
-                  if (resizing.current) {
-                    e.preventDefault()
-                    return
-                  }
-                  e.dataTransfer.effectAllowed = 'move'
-                  e.dataTransfer.setData('text/plain', c)
-                  setDragging(c)
-                }}
-                onDragOver={(e) => {
-                  if (!dragging) return
-                  e.preventDefault()
-                  e.dataTransfer.dropEffect = 'move'
-                  const side = sideFor(e)
-                  if (dropTarget?.column !== c || dropTarget.side !== side) setDropTarget({ column: c, side })
-                }}
-                onDragLeave={() => setDropTarget((t) => (t?.column === c ? null : t))}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  if (dragging) layout.move(dragging, c, sideFor(e))
-                  setDragging(null)
-                  setDropTarget(null)
-                }}
-                onDragEnd={() => {
-                  setDragging(null)
-                  setDropTarget(null)
-                }}
-              >
-                <span className="th-label">{c}</span>
-                <span
-                  className="col-resizer"
-                  title="Drag to resize · double-click to fit"
-                  draggable={false}
-                  onMouseDown={(e) => startResize(e, c)}
-                  onDoubleClick={() => layout.autoFit(c)}
-                  onDragStart={(e) => e.preventDefault()}
-                />
-              </div>
-            )
-          })}
+          {columns.map((c) => (
+            <div
+              key={c}
+              data-col={c}
+              className={`th${dragging === c ? ' dragging' : ''}`}
+              style={{ width: widthOf(c) }}
+              title={`${c} — drag to reorder`}
+              onMouseDown={(e) => startReorder(e, c)}
+            >
+              <span className="th-label">{c}</span>
+              <span
+                className="col-resizer"
+                title="Drag to resize · double-click to fit"
+                onMouseDown={(e) => startResize(e, c)}
+                onDoubleClick={() => layout.autoFit(c)}
+              />
+            </div>
+          ))}
         </div>
         {virtualizer.getVirtualItems().map((v) => {
           const row = table.rows[v.index]
@@ -177,7 +188,7 @@ export function DataTable({ table, layout, onOpenSubquery }: Props) {
                 {v.index + 1}
               </div>
               {columns.map((c) => (
-                <div key={c} className="td" style={{ width: widthOf(c) }} title={isSubqueryCell(row[c]) ? undefined : cellToString(row[c])}>
+                <div key={c} className={`td${dragging === c ? ' dragging' : ''}`} style={{ width: widthOf(c) }} title={isSubqueryCell(row[c]) ? undefined : cellToString(row[c])}>
                   <Cell value={row[c]} column={c} onOpenSubquery={onOpenSubquery} />
                 </div>
               ))}
