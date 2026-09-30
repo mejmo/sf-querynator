@@ -1,10 +1,25 @@
 name: Build installers
 
-# Run manually from the Actions tab, or push a tag like v0.2.0.
+# - Push a tag like v0.2.0 (or create a GitHub Release with a new v* tag): builds all platforms and attaches the
+#   installers to that tag's Release (the Release is created if it doesn't exist yet).
+# - Run manually from the Actions tab: leave "tag" empty for a test build (installers only as run artifacts), or enter
+#   an existing tag to build that tag and attach the installers to its Release.
 on:
-  workflow_dispatch:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and attach to its Release (empty = test build only)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+env:
+  # Tag being released, or empty for a test build.
+  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
 
 jobs:
   build:
@@ -21,6 +36,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -28,6 +45,11 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Use the tag as app version
+        if: env.RELEASE_TAG != ''
+        shell: bash
+        run: npm pkg set version="${RELEASE_TAG#v}"
 
       - run: npm test
 
@@ -50,3 +72,22 @@ jobs:
             dist/*.deb
             dist/*.tar.gz
           if-no-files-found: error
+
+  release:
+    # One job uploads everything, so the platform builds don't race to create the Release.
+    needs: build
+    if: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+
+      - run: ls -la installers
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: installers/*
+          fail_on_unmatched_files: true
