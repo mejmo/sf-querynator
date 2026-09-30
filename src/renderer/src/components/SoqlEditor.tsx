@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { toggleLineComments } from '../../../soql/comments'
 import { parseErrorPosition } from '../../../soql/format'
 import { monaco, SOQL, THEME } from '../monaco/setup'
 
@@ -13,6 +14,35 @@ interface Props {
   onRun(): void
   /** Salesforce error text; a "Row:x:Column:y" position becomes an error marker. */
   error: string | null
+}
+
+/** Ctrl+/: comment or uncomment every line touched by the selection(s), always at column 1. */
+function toggleCommentsOnSelection(editor: monaco.editor.ICodeEditor) {
+  const model = editor.getModel()
+  const selections = editor.getSelections()
+  if (!model || !selections?.length) return
+  // Line ranges per selection; a selection ending at column 1 doesn't include that last line. Overlaps are merged.
+  const ranges = selections
+    .map((sel) => {
+      const end = sel.endLineNumber > sel.startLineNumber && sel.endColumn === 1 ? sel.endLineNumber - 1 : sel.endLineNumber
+      return [sel.startLineNumber, end] as [number, number]
+    })
+    .sort((a, b) => a[0] - b[0])
+    .reduce<[number, number][]>((merged, r) => {
+      const last = merged[merged.length - 1]
+      if (last && r[0] <= last[1] + 1) last[1] = Math.max(last[1], r[1])
+      else merged.push([...r])
+      return merged
+    }, [])
+  const edits = ranges.map(([start, end]) => {
+    const lines = Array.from({ length: end - start + 1 }, (_, i) => model.getLineContent(start + i))
+    return { range: new monaco.Range(start, 1, end, model.getLineMaxColumn(end)), text: toggleLineComments(lines).join(model.getEOL()) }
+  })
+  editor.pushUndoStop()
+  editor.executeEdits('toggle-line-comment', edits, () =>
+    ranges.map(([start, end]) => new monaco.Selection(start, 1, end, model.getLineMaxColumn(end)))
+  )
+  editor.pushUndoStop()
 }
 
 export const SoqlEditor = forwardRef<SoqlEditorHandle, Props>(function SoqlEditor({ value, onChange, onRun, error }, ref) {
@@ -42,6 +72,14 @@ export const SoqlEditor = forwardRef<SoqlEditorHandle, Props>(function SoqlEdito
     editorRef.current = editor
     editor.onDidChangeModelContent(() => callbacks.current.onChange(editor.getValue()))
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => callbacks.current.onRun())
+    editor.addAction({
+      id: 'querynator.toggleLineComment',
+      label: 'Toggle Line Comment',
+      // Numpad "/" too: on many non-US layouts "/" isn't on the key Ctrl+/ maps to.
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Slash, monaco.KeyMod.CtrlCmd | monaco.KeyCode.NumpadDivide],
+      contextMenuGroupId: '1_modification',
+      run: toggleCommentsOnSelection
+    })
     editor.focus()
     return () => {
       editor.getModel()?.dispose()

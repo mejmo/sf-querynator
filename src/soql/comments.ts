@@ -24,3 +24,17 @@ export function splitLineComments(text: string): { comments: string[]; body: str
 export function withComments(comments: string[], body: string): string {
   return comments.length ? [...comments, body].join('\n') : body
 }
+
+/**
+ * Ctrl+/ behaviour: if every non-blank line is a comment, remove the `//` (and one following space); otherwise
+ * prepend `// ` to every non-blank line. Always at column 1, because only a leading `//` counts as a comment.
+ */
+export function toggleLineComments(lines: string[]): string[] {
+  const content = lines.filter((l) => l.trim() !== '')
+  if (content.length === 0) return lines.map((l) => `// ${l}`)
+  const uncomment = content.every(isCommentLine)
+  return lines.map((l) => {
+    if (l.trim() === '') return l
+    return uncomment ? l.replace(/^\/\/ ?/, '') : `// ${l}`
+  })
+}

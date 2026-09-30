@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isCommentLine, maskLineComments, splitLineComments, withComments } from '../../src/soql/comments'
+import { isCommentLine, maskLineComments, splitLineComments, toggleLineComments, withComments } from '../../src/soql/comments'
 import { getCompletionContext } from '../../src/soql/context'
 import { beautify } from '../../src/soql/format'
 
@@ -38,5 +38,33 @@ describe('line comments', () => {
     const offset = q.indexOf('|')
     const ctx = getCompletionContext(maskLineComments(q.replace('|', '')), offset)
     expect(ctx).toMatchObject({ kind: 'field', from: { kind: 'object', name: 'Account' } })
+  })
+})
+
+describe('toggleLineComments', () => {
+  it('comments every non-blank line at column 1, even indented ones', () => {
+    expect(toggleLineComments(['SELECT Id,', '	(SELECT Id FROM Contacts)', '', 'FROM Account'])).toEqual([
+      '// SELECT Id,',
+      '// 	(SELECT Id FROM Contacts)',
+      '',
+      '// FROM Account'
+    ])
+  })
+
+  it('uncomments when every non-blank line is a comment', () => {
+    expect(toggleLineComments(['// SELECT Id', '', '//FROM Account'])).toEqual(['SELECT Id', '', 'FROM Account'])
+  })
+
+  it('comments a mixed selection', () => {
+    expect(toggleLineComments(['// note', 'SELECT Id'])).toEqual(['// // note', '// SELECT Id'])
+  })
+
+  it('comments a blank line on its own', () => {
+    expect(toggleLineComments([''])).toEqual(['// '])
+  })
+
+  it('round-trips', () => {
+    const lines = ['SELECT Id', '  , Name', 'FROM Account']
+    expect(toggleLineComments(toggleLineComments(lines))).toEqual(lines)
   })
 })
