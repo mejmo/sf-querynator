@@ -84,6 +84,29 @@ createServer((req, res) => {
   const url = new URL(req.url, base)
   const p = url.pathname
   console.log(req.method, p + url.search.slice(0, 80))
+  // Salesforce OAuth (web server flow + PKCE): authorize redirects straight back to the callback.
+  if (p === '/services/oauth2/authorize') {
+    const q = new URLSearchParams({ code: `SFCODE-${++signIns}`, state: url.searchParams.get('state') })
+    return send(res, 302, undefined, { Location: `${url.searchParams.get('redirect_uri')}?${q}` })
+  }
+  if (p === '/services/oauth2/token') {
+    readBody(req).then((body) => {
+      const params = new URLSearchParams(body)
+      if (!params.get('code_verifier') && params.get('grant_type') === 'authorization_code') {
+        return send(res, 400, { error: 'invalid_grant', error_description: 'PKCE code_verifier missing' })
+      }
+      const n = (params.get('code') ?? params.get('refresh_token') ?? '').split('-').pop()
+      send(res, 200, {
+        access_token: `MOCK_AT-${n}`,
+        refresh_token: `MOCK_SF_RT-${n}`,
+        instance_url: base,
+        id: `https://login.salesforce.com/id/${ORG}/${userId(n)}`,
+        token_type: 'Bearer'
+      })
+    })
+    return
+  }
+  if (p === '/services/oauth2/revoke') return send(res, 200)
   // Azure AD: authorize redirects straight back (custom-scheme redirect URIs are intercepted by the app).
   if (p === '/azure/authorize') {
     const to = url.searchParams.get('redirect_uri')

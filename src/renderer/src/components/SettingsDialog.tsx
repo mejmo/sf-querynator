@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Environment, EnvironmentConfig } from '../../../shared/types'
+import { DEFAULT_SALESFORCE_REDIRECT, type AuthType, type Environment, type EnvironmentConfig } from '../../../shared/types'
 import { useStore } from '../store'
 import { Modal } from './Modal'
 
@@ -12,11 +12,13 @@ interface EnvForm extends EnvironmentConfig {
 
 const blankForm: EnvForm = {
   name: '',
+  authType: 'salesforce',
+  loginUrl: 'https://login.salesforce.com',
   authUrl: '',
   tokenUrl: '',
   clientId: '',
   scope: '',
-  redirectUri: '',
+  redirectUri: DEFAULT_SALESFORCE_REDIRECT,
   sfTokenUrl: '',
   apiVersion: DEFAULT_API_VERSION,
   clientSecret: '',
@@ -25,16 +27,51 @@ const blankForm: EnvForm = {
 
 const toForm = ({ id: _id, ...config }: Environment): EnvForm => ({ ...blankForm, ...config })
 
-const FIELDS: { key: keyof EnvironmentConfig; label: string; placeholder?: string; help?: string; mono?: boolean }[] = [
-  { key: 'name', label: 'Name', placeholder: 'UAT' },
-  { key: 'authUrl', label: 'Auth URL', placeholder: 'https://login.microsoftonline.com/<tenant>/oauth2/v2.0/authorize', mono: true },
-  { key: 'tokenUrl', label: 'Token URL', placeholder: 'https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token', mono: true },
-  { key: 'clientId', label: 'Client ID', mono: true },
-  { key: 'scope', label: 'Scope', placeholder: 'api://… api://…', help: 'Space-separated. offline_access is added automatically so the refresh token can be kept.', mono: true },
-  { key: 'redirectUri', label: 'Callback URL', placeholder: 'msauth://…', help: 'Must match the redirect URI registered in Azure.', mono: true },
-  { key: 'sfTokenUrl', label: 'SF token URL', placeholder: 'https://…/salesforce/token?connected_app=…', help: 'Called with the Azure token; returns the Salesforce access token.', mono: true },
-  { key: 'apiVersion', label: 'API version' }
+const AUTH_TYPES: { value: AuthType; label: string; help: string }[] = [
+  {
+    value: 'salesforce',
+    label: 'Salesforce OAuth (Connected App)',
+    help:
+      'Salesforce login in a Querynator window (OAuth web server flow with PKCE). Needs a Connected App or External Client ' +
+      'App in the org with this Callback URL, PKCE enabled and the api and refresh_token scopes.'
+  },
+  {
+    value: 'azure',
+    label: 'Azure SSO → token service',
+    help: 'Azure AD sign-in in a Querynator window; the Azure token is exchanged for a Salesforce token at the SF token URL.'
+  }
 ]
+
+interface Field {
+  key: keyof EnvironmentConfig
+  label: string
+  placeholder?: string
+  help?: string
+  mono?: boolean
+  list?: string
+}
+
+const LOGIN_URLS = ['https://login.salesforce.com', 'https://test.salesforce.com']
+
+const FIELDS: Record<AuthType, Field[]> = {
+  salesforce: [
+    { key: 'name', label: 'Name', placeholder: 'Production' },
+    { key: 'loginUrl', label: 'Login URL', placeholder: 'https://login.salesforce.com', help: 'login.salesforce.com, test.salesforce.com (sandbox) or your My Domain URL.', mono: true, list: 'login-urls' },
+    { key: 'clientId', label: 'Consumer Key', help: 'From the Connected App / External Client App.', mono: true },
+    { key: 'redirectUri', label: 'Callback URL', help: 'Must match the app\'s callback URL. Nothing needs to listen there; Querynator catches the redirect.', mono: true },
+    { key: 'apiVersion', label: 'API version' }
+  ],
+  azure: [
+    { key: 'name', label: 'Name', placeholder: 'UAT' },
+    { key: 'authUrl', label: 'Auth URL', placeholder: 'https://login.microsoftonline.com/<tenant>/oauth2/v2.0/authorize', mono: true },
+    { key: 'tokenUrl', label: 'Token URL', placeholder: 'https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token', mono: true },
+    { key: 'clientId', label: 'Client ID', mono: true },
+    { key: 'scope', label: 'Scope', placeholder: 'api://… api://…', help: 'Space-separated. offline_access is added automatically so the refresh token can be kept.', mono: true },
+    { key: 'redirectUri', label: 'Callback URL', placeholder: 'msauth://…', help: 'Must match the redirect URI registered in Azure.', mono: true },
+    { key: 'sfTokenUrl', label: 'SF token URL', placeholder: 'https://…/salesforce/token', help: 'Called with the Azure token; returns the Salesforce access token.', mono: true },
+    { key: 'apiVersion', label: 'API version' }
+  ]
+}
 
 export function SettingsDialog() {
   const { settings, envId, refreshSettings, selectEnv, setSettingsOpen, notify } = useStore()
@@ -137,9 +174,31 @@ export function SettingsDialog() {
         <h3>{editing ? `Environment: ${editing.name}` : 'New environment'}</h3>
         {formError && <div className="form-error">{formError}</div>}
         <div className="form">
-          {FIELDS.map((f) => (
-            <FieldRow key={f.key} field={f} value={form[f.key]} onChange={(v) => update({ [f.key]: v })} />
+          <label htmlFor="env-authType">Authentication</label>
+          <select
+            id="env-authType"
+            value={form.authType}
+            onChange={(e) => {
+              const authType = e.target.value as AuthType
+              // Switching to Salesforce OAuth on an empty callback: offer the default one.
+              update({ authType, redirectUri: authType === 'salesforce' && !form.redirectUri ? DEFAULT_SALESFORCE_REDIRECT : form.redirectUri })
+            }}
+          >
+            {AUTH_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <div className="help">{AUTH_TYPES.find((t) => t.value === form.authType)?.help}</div>
+          {FIELDS[form.authType].map((f) => (
+            <FieldRow key={f.key} field={f} value={String(form[f.key] ?? '')} onChange={(v) => update({ [f.key]: v })} />
           ))}
+          <datalist id="login-urls">
+            {LOGIN_URLS.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
           <label htmlFor="env-secret">Client secret</label>
           <input
             id="env-secret"
@@ -166,8 +225,7 @@ export function SettingsDialog() {
           )}
         </div>
         <div className="muted">
-          Login signs in to Azure AD in a Querynator window, then exchanges the Azure token for a Salesforce token via the
-          SF token URL. Exports contain the settings above and the name — never secrets or tokens.
+          Exports contain the settings above and the name — never secrets or tokens.
         </div>
 
         <h3>OpenAI</h3>
@@ -203,7 +261,7 @@ export function SettingsDialog() {
   )
 }
 
-function FieldRow({ field, value, onChange }: { field: (typeof FIELDS)[number]; value: string; onChange(v: string): void }) {
+function FieldRow({ field, value, onChange }: { field: Field; value: string; onChange(v: string): void }) {
   const id = `env-${field.key}`
   return (
     <>
@@ -213,6 +271,7 @@ function FieldRow({ field, value, onChange }: { field: (typeof FIELDS)[number]; 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={field.placeholder}
+        list={field.list}
         spellCheck={false}
         className={field.mono ? 'mono' : undefined}
         style={field.key === 'apiVersion' ? { width: 100 } : undefined}

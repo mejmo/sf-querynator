@@ -8,7 +8,7 @@
 
 ## Features
 
-- **Azure AD SSO** → Salesforce token, several environments, several users per environment
+- **Salesforce OAuth** or **Azure AD SSO** login, several environments, several users per environment
 - **SOQL editor** with highlighting, Beautify and context-aware autocomplete (fields, relationships, picklists, date literals)
 - **Results grid** with Load more, subquery drill-down and CSV / JSON / clipboard export
 - **Objects tab** to browse objects, fields, picklist values and child relationships
@@ -21,22 +21,31 @@
 
 ## Setup
 
-Open **⚙ Settings → Add environment** (or **Import…** a JSON export) and fill in:
+Open **⚙ Settings → Add environment** (or **Import…** a JSON export) and pick the **Authentication**:
+
+**Salesforce OAuth (Connected App)** — for any org. Create a Connected App or External Client App with OAuth enabled,
+callback URL `http://localhost:1717/oauth/callback`, **Require PKCE**, and the `api` + `refresh_token` scopes. Then fill in:
+
+| Field | Example |
+|---|---|
+| Login URL | `https://login.salesforce.com`, `https://test.salesforce.com` or your My Domain |
+| Consumer Key | from the app |
+| Callback URL | same as in the app (nothing listens there — the app window catches the redirect) |
+| Client secret | only if the app requires it |
+
+**Azure SSO → token service** — for orgs behind a service that issues Salesforce tokens for Azure AD tokens:
 
 | Field | Example |
 |---|---|
 | Auth URL / Token URL | `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/authorize` · `…/token` |
 | Client ID, Scope | Azure app registration id, `api://<your-api>/<scope> …` |
 | Callback URL | `msauth://<bundle-id>/<signature>` — must match the Azure app registration |
-| SF token URL | Service that returns a Salesforce token for an Azure token |
-| Client secret | Optional, confidential clients only |
+| SF token URL | Service that returns a Salesforce token for an Azure token (`Authorization: Bearer <Azure token>`) |
 
 For **Fix with AI**, add an OpenAI API key and model in the same dialog.
 
-**How login works:** Azure sign-in (auth code + PKCE) runs in an app window that catches the `msauth://` redirect.
-The Azure token is exchanged at the SF token URL (`Authorization: Bearer …`) for a Salesforce token and instance URL.
-Tokens are renewed automatically. Refresh tokens and keys are encrypted with the OS keychain, and exports never
-contain secrets.
+Both logins use the authorization code flow with PKCE in an app window. Tokens renew automatically, refresh tokens and
+keys are encrypted with the OS keychain, and exports never contain secrets.
 
 ## Installers
 

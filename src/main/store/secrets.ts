@@ -16,6 +16,8 @@ export interface AccountSecrets {
   username?: string
   /** Salesforce access token */
   accessToken?: string
+  /** Salesforce OAuth refresh token (auth type `salesforce`) */
+  refreshToken?: string
   instanceUrl?: string
   orgId?: string
   azureAccessToken?: string
@@ -36,7 +38,7 @@ interface SecretsData {
 }
 
 /** Everything except display info: removed when a session can no longer be renewed. */
-const TOKEN_KEYS: (keyof AccountSecrets)[] = ['accessToken', 'instanceUrl', 'orgId', 'azureAccessToken', 'azureRefreshToken', 'azureExpiresAt']
+const TOKEN_KEYS: (keyof AccountSecrets)[] = ['accessToken', 'refreshToken', 'instanceUrl', 'orgId', 'azureAccessToken', 'azureRefreshToken', 'azureExpiresAt']
 
 /** Earlier versions stored a single session directly on the environment; turn it into an account. */
 function normalizeEnv(raw: unknown): EnvSecrets {

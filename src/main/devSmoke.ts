@@ -70,8 +70,22 @@ export async function runSmoke(win: BrowserWindow, dir: string) {
     key('Escape')
   }
 
+  /** Pick an environment by name in the top bar. */
+  const selectEnvironment = async (name: string) => {
+    const id = await js<string>(`[...document.querySelector('.envbar select').options].find((o) => o.textContent === ${JSON.stringify(name)})?.value ?? ''`)
+    if (!id) throw new Error(`Environment ${name} missing from the smoke profile`)
+    await js(`(() => {
+      const sel = document.querySelector('.envbar select')
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(sel, ${JSON.stringify(id)})
+      sel.dispatchEvent(new Event('change', { bubbles: true }))
+    })()`)
+    await waitFor(`[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Login')`, `${name} ready to log in`)
+  }
+
   try {
     await sleep(1500)
+    // Start on the Azure environment regardless of what the profile last used.
+    await selectEnvironment('Mock org')
     log(`login clicked: ${await clickButton('Login')}`)
     await waitFor(`!!document.querySelector('.usercard .name')`, 'user card')
     log(`user: ${await js<string>(`document.querySelector('.usercard .name').textContent`)}`)
@@ -246,6 +260,24 @@ export async function runSmoke(win: BrowserWindow, dir: string) {
     await clickButton('Logout')
     await waitFor(`!document.querySelector('.usercard .name')`, 'logout')
     log(`after logout: options: ${await js<string>(USER_OPTIONS)}`)
+
+    // Salesforce OAuth environment: log in through the sign-in window, run a query, log out (revokes the token).
+    await selectEnvironment('Mock SF OAuth')
+    await clickButton('Login')
+    await waitFor(`!!document.querySelector('.usercard .name')`, 'Salesforce OAuth login')
+    log(`Salesforce OAuth user: ${await js<string>(USER_NAME)}`)
+    await typeInEditor('SELECT Id, Name FROM Account')
+    key('Enter', ['control'])
+    await waitFor(`document.querySelector('.results-bar .stats')?.textContent.includes('500 loaded')`, 'Salesforce OAuth query')
+    log(`Salesforce OAuth results: ${await js<string>(`document.querySelector('.results-bar .stats').textContent`)}`)
+    await clickButton('Logout')
+    await waitFor(`!document.querySelector('.usercard .name')`, 'Salesforce OAuth logout')
+    log('Salesforce OAuth logout ok')
+    await clickButton('Settings')
+    await waitFor(`!!document.querySelector('#env-authType')`, 'settings dialog')
+    log(`settings auth type: ${await js<string>(`document.querySelector('#env-authType').value`)}; fields: ${await js<string>(`[...document.querySelectorAll('.settings .form label[for^="env-"]')].map((l) => l.textContent).join(', ')`)}`)
+    await shot('9-settings-salesforce')
+    key('Escape')
     log('DONE')
   } catch (e) {
     log(`FAILED: ${e instanceof Error ? e.message : String(e)}`)

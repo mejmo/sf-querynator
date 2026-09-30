@@ -1,10 +1,22 @@
-import type { AppSettings } from '../../shared/types'
+import { DEFAULT_SALESFORCE_REDIRECT, type AppSettings, type Environment } from '../../shared/types'
 import { Mutex, readJson, writeJson } from './jsonFile'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   environments: [],
   openAiModel: 'gpt-4o',
   lastEnvironmentId: null
+}
+
+const STRING_FIELDS = ['loginUrl', 'authUrl', 'tokenUrl', 'clientId', 'scope', 'redirectUri', 'sfTokenUrl', 'apiVersion'] as const
+
+/** Environments saved before auth types existed: Azure ones have an authUrl, Salesforce OAuth ones a loginUrl. */
+function upgradeEnvironment(raw: Partial<Environment>): Environment | null {
+  const authType = raw.authType ?? (raw.authUrl ? 'azure' : raw.loginUrl ? 'salesforce' : null)
+  if (!authType || !raw.id || !raw.name) return null
+  const env = { id: raw.id, name: raw.name, authType } as Environment
+  for (const k of STRING_FIELDS) env[k] = typeof raw[k] === 'string' ? raw[k] : ''
+  if (authType === 'salesforce' && !env.redirectUri) env.redirectUri = DEFAULT_SALESFORCE_REDIRECT
+  return env
 }
 
 export class SettingsStore {
@@ -15,8 +27,7 @@ export class SettingsStore {
   async load(): Promise<AppSettings> {
     const stored = await readJson<Partial<AppSettings> & { callbackPort?: unknown }>(this.file, {})
     const { callbackPort: _legacy, ...rest } = stored
-    // Environments from the earlier Salesforce-OAuth version lack the Azure fields and cannot log in.
-    const environments = (rest.environments ?? []).filter((e) => typeof e.authUrl === 'string' && typeof e.sfTokenUrl === 'string')
+    const environments = (rest.environments ?? []).map(upgradeEnvironment).filter((e): e is Environment => e !== null)
     return { ...DEFAULT_SETTINGS, ...rest, environments }
   }
 

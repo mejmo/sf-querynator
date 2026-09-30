@@ -4,12 +4,21 @@
   "environments": [
     {
       "name": "Mock org",
+      "authType": "azure",
       "authUrl": "http://127.0.0.1:8787/azure/authorize",
       "tokenUrl": "http://127.0.0.1:8787/azure/token",
       "clientId": "MOCK",
       "scope": "api://mock/.default",
       "redirectUri": "msauth://com.example.mock/abc+def=",
       "sfTokenUrl": "http://127.0.0.1:8787/salesforce/token?app=querynator",
+      "apiVersion": "62.0"
+    },
+    {
+      "name": "Mock SF OAuth",
+      "authType": "salesforce",
+      "loginUrl": "http://127.0.0.1:8787",
+      "clientId": "MOCK_CONSUMER_KEY",
+      "redirectUri": "http://localhost:1717/oauth/callback",
       "apiVersion": "62.0"
     }
   ]

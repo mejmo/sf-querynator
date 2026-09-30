@@ -20,6 +20,8 @@ const AZURE_TOKEN_URL = 'https://login.microsoftonline.com/tenant/oauth2/v2.0/to
 const SF_TOKEN_URL = 'https://api.example.com/salesforce/token?app=querynator'
 const ENV_INPUT: EnvironmentConfig = {
   name: 'UAT',
+  authType: 'azure',
+  loginUrl: '',
   authUrl: 'https://login.microsoftonline.com/tenant/oauth2/v2.0/authorize',
   tokenUrl: AZURE_TOKEN_URL,
   clientId: 'CID',
@@ -118,7 +120,8 @@ describe('environments', () => {
     const { service } = setup()
     const env = await service.saveEnvironment(null, { ...ENV_INPUT, clientSecret: 'TOP-SECRET' })
     const file = await service.buildEnvironmentFile([env.id])
-    expect(file).toEqual({ format: 'querynator-environments', version: 1, environments: [ENV_INPUT] })
+    const { loginUrl: _unused, ...azureOnly } = ENV_INPUT
+    expect(file).toEqual({ format: 'querynator-environments', version: 1, environments: [azureOnly] })
     expect(JSON.stringify(file)).not.toContain('TOP-SECRET')
     await expect(service.buildEnvironmentFile(['nope'])).rejects.toBeInstanceOf(ConfigError)
   })
@@ -154,17 +157,37 @@ describe('environments', () => {
 
   it('the committed mock environment file imports cleanly', async () => {
     const { service } = setup()
-    const [env] = await service.importEnvironments(JSON.parse(await readFile('scripts/mock-environment.json', 'utf8')))
-    expect(env.name).toBe('Mock org')
+    const envs = await service.importEnvironments(JSON.parse(await readFile('scripts/mock-environment.json', 'utf8')))
+    expect(envs.map((e) => [e.name, e.authType])).toEqual([
+      ['Mock org', 'azure'],
+      ['Mock SF OAuth', 'salesforce']
+    ])
   })
 
-  it('drops legacy Salesforce-OAuth environments on load', async () => {
+  it('infers the auth type of environments saved before auth types existed', async () => {
     const { stores, service } = setup()
+    const { authType: _a, loginUrl: _l, ...legacyAzure } = ENV_INPUT
     await stores.settings.update((s) => ({
       ...s,
-      environments: [{ id: 'old', name: 'Old', loginUrl: 'https://login.salesforce.com', clientId: 'x', apiVersion: '62.0' } as never]
+      environments: [
+        { id: 'az', ...legacyAzure } as never,
+        { id: 'sf', name: 'Old', loginUrl: 'https://login.salesforce.com', clientId: 'x', apiVersion: '62.0' } as never,
+        { id: 'junk', name: 'Nothing' } as never
+      ]
     }))
-    expect((await service.getSettings()).environments).toEqual([])
+    const envs = (await service.getSettings()).environments
+    expect(envs.map((e) => [e.id, e.authType])).toEqual([
+      ['az', 'azure'],
+      ['sf', 'salesforce']
+    ])
+    expect(envs[1].redirectUri).toBe('http://localhost:1717/oauth/callback')
+  })
+
+  it('imports files exported before auth types existed as Azure environments', async () => {
+    const { service } = setup()
+    const { authType: _a, loginUrl: _l, ...legacyAzure } = ENV_INPUT
+    const [env] = await service.importEnvironments({ format: 'querynator-environments', version: 1, environments: [legacyAzure] })
+    expect(env.authType).toBe('azure')
   })
 })
 
@@ -438,5 +461,114 @@ describe('logout and delete', () => {
     expect(settings.lastEnvironmentId).toBeNull()
     expect(await stores.secrets.getEnv(env.id)).toEqual({ accounts: {} })
     expect(await service.getHistory(env.id)).toEqual([])
+  })
+})
+
+describe('Salesforce OAuth environments', () => {
+  const LOGIN = 'https://login.salesforce.com'
+  const SF_ENV: EnvironmentConfig = {
+    name: 'Prod',
+    authType: 'salesforce',
+    loginUrl: `${LOGIN}/`,
+    authUrl: 'ignored',
+    tokenUrl: '',
+    clientId: 'CONSUMER_KEY',
+    scope: '',
+    redirectUri: 'http://localhost:1717/oauth/callback',
+    sfTokenUrl: '',
+    apiVersion: '62.0'
+  }
+  const grant = (n: number, withRefresh = true) => ({
+    access_token: `OA${n}`,
+    ...(withRefresh ? { refresh_token: `ORT${n}` } : {}),
+    instance_url: INSTANCE,
+    id: `${LOGIN}/id/${ORG_ID}/${USER_ID}`
+  })
+
+  async function sfLoggedIn() {
+    const ctx = setup()
+    const env = await ctx.service.saveEnvironment(null, SF_ENV)
+    ctx.f.once(`POST ${LOGIN}/services/oauth2/token`, json(grant(1)))
+    ctx.f.once(USER_QUERY, json({ totalSize: 1, done: true, records: [USER_ROW] }))
+    const session = await ctx.service.login(env.id)
+    return { ...ctx, env, session }
+  }
+
+  it('validates only the Salesforce fields and blanks the Azure ones', async () => {
+    const { service } = setup()
+    const env = await service.saveEnvironment(null, SF_ENV)
+    expect(env).toMatchObject({ authType: 'salesforce', loginUrl: LOGIN, authUrl: '', clientId: 'CONSUMER_KEY' })
+    await expect(service.saveEnvironment(null, { ...SF_ENV, loginUrl: 'login.salesforce.com' })).rejects.toThrow(/Login URL/)
+    await expect(service.saveEnvironment(null, { ...SF_ENV, clientId: '' })).rejects.toThrow(/Consumer Key/)
+    const file = await service.buildEnvironmentFile([env.id])
+    expect(file.environments[0]).toEqual({
+      name: 'Prod',
+      authType: 'salesforce',
+      loginUrl: LOGIN,
+      clientId: 'CONSUMER_KEY',
+      redirectUri: 'http://localhost:1717/oauth/callback',
+      apiVersion: '62.0'
+    })
+  })
+
+  it('logs in with the authorization code + PKCE and stores the refresh token', async () => {
+    const { f, deps, stores, env, session } = await sfLoggedIn()
+    const url = new URL(deps.authorize.mock.calls[0][0].url)
+    expect(url.origin + url.pathname).toBe(`${LOGIN}/services/oauth2/authorize`)
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({
+      response_type: 'code',
+      client_id: 'CONSUMER_KEY',
+      redirect_uri: 'http://localhost:1717/oauth/callback',
+      code_challenge_method: 'S256',
+      prompt: 'login'
+    })
+    expect(Object.fromEntries(new URLSearchParams(f.requests[0].body))).toMatchObject({
+      grant_type: 'authorization_code',
+      code: 'AUTH_CODE',
+      client_id: 'CONSUMER_KEY',
+      redirect_uri: 'http://localhost:1717/oauth/callback'
+    })
+    expect(new URLSearchParams(f.requests[0].body).get('code_verifier')).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(f.requests[1].headers.authorization).toBe('Bearer OA1')
+    expect(session.state).toMatchObject({ status: 'connected', user: { name: 'Jane Doe', orgId: ORG_ID, instanceUrl: INSTANCE } })
+    expect(await stores.secrets.getAccount(env.id, USER_ID)).toMatchObject({ accessToken: 'OA1', refreshToken: 'ORT1', instanceUrl: INSTANCE })
+  })
+
+  it('refreshes the access token on a 401, keeping the refresh token when none is returned', async () => {
+    const { f, service, stores, env } = await sfLoggedIn()
+    f.requests.length = 0
+    f.once('GET /query', json(expired, 401))
+    f.once(`POST ${LOGIN}/services/oauth2/token`, json(grant(2, false)))
+    f.once('GET /query', json({ totalSize: 0, done: true, records: [] }))
+    await service.runQuery(env.id, 'SELECT Id FROM Account', false)
+    expect(Object.fromEntries(new URLSearchParams(f.requests[1].body))).toEqual({ grant_type: 'refresh_token', refresh_token: 'ORT1', client_id: 'CONSUMER_KEY' })
+    expect(f.requests[2].headers.authorization).toBe('Bearer OA2')
+    expect(await stores.secrets.getAccount(env.id, USER_ID)).toMatchObject({ accessToken: 'OA2', refreshToken: 'ORT1' })
+  })
+
+  it('logs out when the refresh token is revoked', async () => {
+    const { f, service, env } = await sfLoggedIn()
+    f.once(USER_QUERY, json(expired, 401))
+    f.once(`POST ${LOGIN}/services/oauth2/token`, json({ error: 'invalid_grant', error_description: 'expired access/refresh token' }, 400))
+    const session = await service.connect(env.id)
+    expect(session.state).toEqual({ status: 'loggedOut' })
+    expect(session.accounts[0].needsLogin).toBe(true)
+  })
+
+  it('logout revokes the refresh token', async () => {
+    const { f, service, env } = await sfLoggedIn()
+    f.requests.length = 0
+    f.once(`POST ${LOGIN}/services/oauth2/revoke`, new Response(null, { status: 200 }))
+    expect((await service.logout(env.id)).accounts).toEqual([])
+    expect(new URLSearchParams(f.requests[0].body).get('token')).toBe('ORT1')
+  })
+
+  it('sends the client secret when one is configured', async () => {
+    const { f, service } = setup()
+    const env = await service.saveEnvironment(null, { ...SF_ENV, clientSecret: 'SECRET' })
+    f.once(`POST ${LOGIN}/services/oauth2/token`, json(grant(1)))
+    f.once(USER_QUERY, json({ totalSize: 1, done: true, records: [USER_ROW] }))
+    await service.login(env.id)
+    expect(new URLSearchParams(f.requests[0].body).get('client_secret')).toBe('SECRET')
   })
 })

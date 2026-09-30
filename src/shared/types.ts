@@ -1,14 +1,31 @@
-/** Everything that defines an environment; this is what export/import carries (no secrets, no tokens). */
+/**
+ * How users of an environment log in:
+ * - `salesforce`: Salesforce OAuth (web server flow + PKCE) with a Connected App / External Client App.
+ * - `azure`: Azure AD sign-in, then the Azure token is exchanged for a Salesforce token at `sfTokenUrl`.
+ */
+export type AuthType = 'salesforce' | 'azure'
+
+/** Callback suggested for Salesforce OAuth; the app intercepts it, nothing needs to listen there. */
+export const DEFAULT_SALESFORCE_REDIRECT = 'http://localhost:1717/oauth/callback'
+
+/**
+ * Everything that defines an environment; this is what export/import carries (no secrets, no tokens).
+ * Fields that don't apply to the auth type are empty strings.
+ */
 export interface EnvironmentConfig {
   name: string
+  authType: AuthType
+  /** Salesforce OAuth: login host, e.g. https://login.salesforce.com, https://test.salesforce.com or a My Domain */
+  loginUrl: string
   /** Azure AD authorize endpoint */
   authUrl: string
   /** Azure AD token endpoint */
   tokenUrl: string
+  /** Azure client ID, or the Salesforce Connected App's Consumer Key */
   clientId: string
   /** Space-separated Azure scopes; `offline_access` is added automatically. */
   scope: string
-  /** Redirect URI registered in Azure (may be a custom scheme such as msauth://…) */
+  /** Redirect/callback URI registered in Azure or in the Salesforce app (may be a custom scheme such as msauth://…) */
   redirectUri: string
   /** Endpoint that exchanges the Azure access token for a Salesforce access token */
   sfTokenUrl: string
