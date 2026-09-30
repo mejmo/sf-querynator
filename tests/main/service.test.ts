@@ -361,9 +361,21 @@ describe('queries', () => {
     expect(await service.getHistory(env.id)).toEqual([])
   })
 
-  it('rejects empty queries', async () => {
+  it('rejects empty queries, including comment-only ones', async () => {
     const { service, env } = await loggedIn()
     await expect(service.runQuery(env.id, '   ', false)).rejects.toBeInstanceOf(ConfigError)
+    await expect(service.runQuery(env.id, '// SELECT Id FROM Account', false)).rejects.toBeInstanceOf(ConfigError)
+  })
+
+  it('blanks // comment lines before sending but keeps them in history', async () => {
+    const { f, service, env } = await loggedIn()
+    f.once('GET /query', json({ totalSize: 0, done: true, records: [] }))
+    const text = '// note\nSELECT Id\n// , Name\nFROM Account'
+    await service.runQuery(env.id, text, false)
+    const sent = new URL(f.requests[0].url).searchParams.get('q')
+    expect(sent).toBe('       \nSELECT Id\n         \nFROM Account')
+    expect(sent).not.toContain('//')
+    expect((await service.getHistory(env.id))[0].query).toBe(text)
   })
 })
 
@@ -398,11 +410,12 @@ describe('fixQuery', () => {
       childRelationships: []
     }))
     f.once('POST /chat/completions', json({ choices: [{ message: { content: '{"query":"SELECT Name FROM Account","explanation":"x"}' } }] }))
-    const r = await service.fixQuery(env.id, 'SELECT Nme FROM Account', 'No such column')
+    const r = await service.fixQuery(env.id, '// my note\nSELECT Nme FROM Account', 'No such column')
     expect(r.query).toBe('SELECT Name FROM Account')
     const body = JSON.parse(f.requests.at(-1)!.body!)
     expect(body.model).toBe('gpt-4o')
     expect(body.messages[1].content).toContain('Name (string)')
+    expect(body.messages[1].content).not.toContain('my note')
   })
 })
 

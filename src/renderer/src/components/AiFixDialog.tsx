@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AiSuggestion, AppError } from '../../../shared/types'
+import { splitLineComments, withComments } from '../../../soql/comments'
 import { beautifyOrKeep } from '../../../soql/format'
 import { monaco, SOQL, THEME } from '../monaco/setup'
 import { useStore } from '../store'
@@ -23,7 +24,8 @@ export function AiFixDialog() {
     setError(null)
     void window.api.fixQuery(envId, original, queryError).then((r) => {
       if (stale) return
-      if (r.ok) setSuggestion({ ...r.value, query: beautifyOrKeep(r.value.query) })
+      // The AI never sees comment lines; keep them on top of its suggestion like Beautify does.
+      if (r.ok) setSuggestion({ ...r.value, query: withComments(splitLineComments(original).comments, beautifyOrKeep(r.value.query)) })
       else setError(r.error)
     })
     return () => {

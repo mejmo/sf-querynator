@@ -1,6 +1,7 @@
 import * as monaco from 'monaco-editor'
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
 import { DATE_LITERALS, DATE_N_LITERALS, getCompletions, type SuggestionKind } from '../../../soql/completions'
+import { isCommentLine, maskLineComments } from '../../../soql/comments'
 import { getCompletionContext } from '../../../soql/context'
 import { beautify } from '../../../soql/format'
 import { getActiveMetadata } from '../metadata'
@@ -44,6 +45,8 @@ monaco.languages.setMonarchTokensProvider(SOQL, {
   dateLiterals: [...DATE_LITERALS, ...DATE_N_LITERALS],
   tokenizer: {
     root: [
+      // `//` comment: only when they are the line's first two characters.
+      [/^\/\/.*$/, 'comment'],
       [/\s+/, 'white'],
       [/'/, 'string', '@string'],
       [/:[A-Za-z_]\w*/, 'variable'],
@@ -74,7 +77,8 @@ monaco.editor.defineTheme(THEME, {
     { token: 'number', foreground: '8FD6B4' },
     { token: 'number.date', foreground: '8FD6B4' },
     { token: 'operator', foreground: 'C9AEFB' },
-    { token: 'identifier', foreground: 'E6E2F0' }
+    { token: 'identifier', foreground: 'E6E2F0' },
+    { token: 'comment', foreground: '7D7696', fontStyle: 'italic' }
   ],
   colors: {
     'editor.background': '#17151F',
@@ -117,8 +121,10 @@ const KIND: Record<SuggestionKind, monaco.languages.CompletionItemKind> = {
 monaco.languages.registerCompletionItemProvider(SOQL, {
   triggerCharacters: ['.', ' ', "'", ',', '('],
   async provideCompletionItems(model, position) {
+    if (isCommentLine(model.getLineContent(position.lineNumber))) return { suggestions: [] }
     const offset = model.getOffsetAt(position)
-    const ctx = getCompletionContext(model.getValue(), offset)
+    // Comment text must not influence the context (e.g. "// FROM Contact").
+    const ctx = getCompletionContext(maskLineComments(model.getValue()), offset)
     const suggestions = await getCompletions(ctx, getActiveMetadata())
     const partialLength = 'partial' in ctx ? ctx.partial.length : 0
     const start = model.getPositionAt(offset - partialLength)

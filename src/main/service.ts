@@ -17,6 +17,7 @@ import {
   type SettingsView,
   type SObjectDescribe
 } from '../shared/types'
+import { maskLineComments, splitLineComments } from '../soql/comments'
 import { findRootObject } from '../soql/context'
 import { suggestFix } from './ai/openai'
 import { buildAuthorizeUrl, createPkce, createState, exchangeCode, parseCallback, refreshAzureToken, type AzureTokenResponse } from './auth/azure'
@@ -375,13 +376,16 @@ export class AppService implements ServiceApi {
   }
 
   async runQuery(envId: string, soql: string, queryAll: boolean): Promise<QueryRunResult> {
+    // History keeps the text as written (with comments); Salesforce gets comment lines blanked out, which keeps
+    // row/column positions in its error messages aligned with the editor.
     const query = soql.trim()
-    if (!query) throw new ConfigError('Query is empty')
+    const sent = maskLineComments(soql).trimEnd()
+    if (!sent.trim()) throw new ConfigError('Query is empty')
     const client = await this.client(envId)
     const start = this.now()
     const ranAt = new Date().toISOString()
     try {
-      const r = await this.timed((signal) => client.query(query, { queryAll, signal }))
+      const r = await this.timed((signal) => client.query(sent, { queryAll, signal }))
       await this.deps.history.add(envId, { query, ranAt, rowCount: r.result.totalSize, durationMs: r.durationMs })
       return r
     } catch (e) {
@@ -434,6 +438,8 @@ export class AppService implements ServiceApi {
     if (!apiKey) throw new ConfigError('Set your OpenAI API key in Settings first.')
     const env = await this.env(envId)
     const { openAiModel } = await this.deps.settings.load()
+    // The AI sees the query without comment lines; the dialog puts them back.
+    soql = splitLineComments(soql).body.trim()
     const objectName = findRootObject(soql)
     let fields: { name: string; type: string }[] = []
     if (objectName) {

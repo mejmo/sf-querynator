@@ -1,10 +1,14 @@
 import { formatQuery } from '@jetstreamapp/soql-parser-js'
+import { splitLineComments, withComments } from './comments'
 
 export type BeautifyResult = { ok: true; text: string } | { ok: false; error: string }
 
+/** Formats the query; `//` comment lines are kept, gathered above the formatted query. */
 export function beautify(soql: string): BeautifyResult {
+  const { comments, body } = splitLineComments(soql)
+  if (!body.trim()) return { ok: true, text: soql }
   try {
-    return { ok: true, text: formatQuery(soql, { fieldMaxLineLength: 60 }) }
+    return { ok: true, text: withComments(comments, formatQuery(body, { fieldMaxLineLength: 60 })) }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }

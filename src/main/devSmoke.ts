@@ -167,6 +167,13 @@ export async function runSmoke(win: BrowserWindow, dir: string) {
     await waitFor(`${EDITOR_TEXT}.includes('ORDER BY')`, 'beautify')
     log(`beautified: ${JSON.stringify(await js<string>(EDITOR_TEXT))}`)
 
+    // `//` comment lines: highlighted as comments and never sent to Salesforce.
+    await typeInEditor('// all accounts FROM Contact\nSELECT Id, Name FROM Account')
+    const commentStyle = await js<string>(`getComputedStyle([...document.querySelectorAll('.editor-host .view-line')].sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))[0].querySelector('span span')).fontStyle`)
+    key('Enter', ['control'])
+    await waitFor(`document.querySelector('.history li .q')?.textContent.startsWith('// all accounts')`, 'commented query in history')
+    log(`comment line: font-style=${commentStyle}; run ok=${await js<boolean>(`!document.querySelector('.banner')`)}`)
+
     await typeInEditor('SELECT Id FRO Account')
     key('Enter', ['control'])
     await waitFor(`!!document.querySelector('.banner')`, 'error banner')
