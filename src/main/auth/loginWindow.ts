@@ -26,7 +26,7 @@ export function createWindowAuthorizer(getParent: () => BrowserWindow | null): A
         parent: getParent() ?? undefined,
         title: 'Sign in',
         autoHideMenuBar: true,
-        webPreferences: { partition: 'persist:sso', contextIsolation: true, nodeIntegration: false, sandbox: true }
+        webPreferences: { partition: 'persist:sso', contextIsolation: true, nodeIntegration: false, sandbox: true, disableBlinkFeatures: 'Auxclick' }
       })
       let settled = false
       const finish = (fn: () => void) => {

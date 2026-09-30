@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Weekly dependency update PRs; minor and patch updates are grouped into one PR.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  # Keep the pinned GitHub Actions current as well.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

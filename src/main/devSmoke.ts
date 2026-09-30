@@ -98,6 +98,10 @@ export async function runSmoke(win: BrowserWindow, dir: string) {
     await waitFor(`document.querySelector('.results-bar .stats').textContent.includes('1,000 loaded')`, 'load more')
     log(`after load more: ${await js<string>(`document.querySelector('.results-bar .stats').textContent`)}`)
     await shot('1-results')
+    clipboard.writeText('')
+    await clickButton('Copy')
+    await sleep(300)
+    log(`Copy -> clipboard header: ${JSON.stringify((await clipboard.readText()).split(/\r?\n/)[0])}`)
 
     // Layout: drag the editor/results divider, resize a column, reorder columns by drag and drop.
     const rect = (selector: string) =>

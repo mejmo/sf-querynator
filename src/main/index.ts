@@ -6,6 +6,7 @@ import type { FetchFn } from './errors'
 import { runSmoke } from './devSmoke'
 import { registerIpc } from './ipc'
 import { initLog, logError } from './log'
+import { lockDownPermissions } from './permissions'
 import { AppService } from './service'
 import { HistoryStore } from './store/history'
 import { MetaCache } from './store/metaCache'
@@ -42,7 +43,7 @@ function createSplash(): BrowserWindow {
     hasShadow: false,
     show: false,
     icon: APP_ICON,
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, disableBlinkFeatures: 'Auxclick' }
   })
   splash.once('ready-to-show', () => splash.show())
   // Dev aid: QN_SPLASH_SHOT=out.png saves what the splash renders.
@@ -75,7 +76,9 @@ function createWindow() {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      // Middle-click must not open links in new windows.
+      disableBlinkFeatures: 'Auxclick'
     }
   })
 
@@ -125,6 +128,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  lockDownPermissions()
   const data = app.getPath('userData')
   const smokeDir = !app.isPackaged ? process.env.QN_SMOKE : undefined
   initLog(join(data, 'logs', 'main.log'))
