@@ -51,15 +51,16 @@ For **Fix with AI**, add an OpenAI API key and model in the same dialog.
 Both logins use the authorization code flow with PKCE in an app window. Tokens renew automatically, refresh tokens and
 keys are encrypted with the OS keychain, and exports never contain secrets.
 
-## Installers
+## Install
 
-| Platform | Files | First launch |
-|---|---|---|
-| Windows | `Querynator Setup x.y.z.exe` | Unsigned: SmartScreen → **More info → Run anyway** |
-| Linux | `.AppImage`, `.deb`, `.tar.gz` | `sudo apt install ./querynator_*.deb` or `chmod +x` the AppImage |
-| macOS | `.dmg` / `.zip` (Intel + Apple Silicon) | Not notarized: right-click → **Open** |
+Download the installer for your system from the **[latest release](https://github.com/mejmo/sf-querynator/releases/latest)**:
 
-GitHub Actions (**Build installers**, or push a `v*` tag) builds all three. macOS can only be built on a Mac.
+- **Windows** — `Querynator Setup x.y.z.exe`. If SmartScreen warns, click **More info → Run anyway**.
+- **macOS** — `Querynator-x.y.z-arm64.dmg` (Apple Silicon) or `Querynator-x.y.z.dmg` (Intel).
+  [How to open an app from an unidentified developer](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unidentified-developer-mh40616/mac)
+- **Linux** — `querynator_x.y.z_amd64.deb` (`sudo apt install ./querynator_*.deb`) or the `.AppImage` (`chmod +x`, then run).
+
+All versions: [Releases](https://github.com/mejmo/sf-querynator/releases)
 
 ## Development
 
