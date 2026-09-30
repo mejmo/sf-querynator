@@ -1,0 +1,16 @@
+{
+  "format": "querynator-environments",
+  "version": 1,
+  "environments": [
+    {
+      "name": "Mock org",
+      "authUrl": "http://127.0.0.1:8787/azure/authorize",
+      "tokenUrl": "http://127.0.0.1:8787/azure/token",
+      "clientId": "MOCK",
+      "scope": "api://mock/.default",
+      "redirectUri": "msauth://com.example.mock/abc+def=",
+      "sfTokenUrl": "http://127.0.0.1:8787/salesforce/token?app=querynator",
+      "apiVersion": "62.0"
+    }
+  ]
+}

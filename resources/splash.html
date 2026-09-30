@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'" />
+    <title>Querynator</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+        -webkit-app-region: drag;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .card {
+        width: 560px;
+        padding: 36px 32px 28px;
+        background: radial-gradient(120% 140% at 50% 0%, #241f36 0%, #17151f 60%);
+        border: 1px solid rgba(131, 70, 236, 0.35);
+        border-radius: 18px;
+        animation: in 0.35s ease-out;
+        box-sizing: border-box;
+      }
+      img {
+        display: block;
+        width: 100%;
+      }
+      .bar {
+        position: relative;
+        height: 4px;
+        margin-top: 26px;
+        border-radius: 2px;
+        background: rgba(131, 70, 236, 0.18);
+        overflow: hidden;
+      }
+      .bar::after {
+        content: '';
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 35%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, #8346ec, #0981e8);
+        animation: slide 1.1s ease-in-out infinite;
+      }
+      @keyframes slide {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(290%);
+        }
+      }
+      @keyframes in {
+        from {
+          opacity: 0;
+          transform: scale(0.97);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img src="splash.png" alt="Querynator — Salesforce SOQL" />
+      <div class="bar" role="progressbar" aria-label="Loading"></div>
+    </div>
+  </body>
+</html>
