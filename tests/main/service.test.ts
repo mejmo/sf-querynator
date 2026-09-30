@@ -386,6 +386,15 @@ describe('queries', () => {
     expect(await service.getHistory(env.id)).toEqual([])
   })
 
+  it('a cancel right after starting (before the request is sent) still cancels', async () => {
+    const { f, service, env } = await loggedIn()
+    f.once('GET /query', () => new Promise<Response>(() => undefined))
+    const running = service.runQuery(env.id, 'SELECT Id FROM Account', false)
+    await service.cancelQuery()
+    await expect(running).rejects.toMatchObject({ name: 'AbortError' })
+    expect(await service.getHistory(env.id)).toEqual([])
+  })
+
   it('rejects empty queries, including comment-only ones', async () => {
     const { service, env } = await loggedIn()
     await expect(service.runQuery(env.id, '   ', false)).rejects.toBeInstanceOf(ConfigError)

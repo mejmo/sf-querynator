@@ -488,12 +488,21 @@ export class AppService implements ServiceApi {
 
   // ---- queries --------------------------------------------------------------
 
-  private async timed(run: (signal: AbortSignal) => Promise<QueryRunResult['result']>): Promise<QueryRunResult> {
+  /**
+   * Starts a cancellable query: aborts any previous one and returns the new abort signal. Called before anything is
+   * awaited, so a Cancel pressed while settings/tokens are still being read also stops the query.
+   */
+  private beginQuery(): AbortController {
     this.queryAbort?.abort()
     const abort = new AbortController()
     this.queryAbort = abort
+    return abort
+  }
+
+  private async timed(abort: AbortController, run: (signal: AbortSignal) => Promise<QueryRunResult['result']>): Promise<QueryRunResult> {
     const start = this.now()
     try {
+      if (abort.signal.aborted) throw new DOMException('The operation was aborted.', 'AbortError')
       const result = await run(abort.signal)
       return { result, durationMs: Math.round(this.now() - start) }
     } finally {
@@ -507,11 +516,12 @@ export class AppService implements ServiceApi {
     const query = soql.trim()
     const sent = maskLineComments(soql).trimEnd()
     if (!sent.trim()) throw new ConfigError('Query is empty')
-    const client = await this.client(envId)
+    const abort = this.beginQuery()
     const start = this.now()
     const ranAt = new Date().toISOString()
     try {
-      const r = await this.timed((signal) => client.query(sent, { queryAll, signal }))
+      const client = await this.client(envId)
+      const r = await this.timed(abort, (signal) => client.query(sent, { queryAll, signal }))
       await this.deps.history.add(envId, { query, ranAt, rowCount: r.result.totalSize, durationMs: r.durationMs })
       return r
     } catch (e) {
@@ -523,8 +533,9 @@ export class AppService implements ServiceApi {
   }
 
   async queryMore(envId: string, nextRecordsUrl: string): Promise<QueryRunResult> {
+    const abort = this.beginQuery()
     const client = await this.client(envId)
-    return this.timed((signal) => client.queryMore(nextRecordsUrl, signal))
+    return this.timed(abort, (signal) => client.queryMore(nextRecordsUrl, signal))
   }
 
   async cancelQuery(): Promise<void> {
