@@ -85,6 +85,57 @@ export async function runSmoke(win: BrowserWindow, dir: string) {
     log(`after load more: ${await js<string>(`document.querySelector('.results-bar .stats').textContent`)}`)
     await shot('1-results')
 
+    // Layout: drag the editor/results divider, resize a column, reorder columns by drag and drop.
+    const rect = (selector: string) =>
+      js<{ x: number; y: number; w: number; h: number }>(
+        `(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height } })()`
+      )
+    const drag = async (x: number, y: number, dx: number, dy: number) => {
+      wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 })
+      for (let i = 1; i <= 5; i++) {
+        wc.sendInputEvent({ type: 'mouseMove', x: Math.round(x + (dx * i) / 5), y: Math.round(y + (dy * i) / 5), button: 'left' })
+        await sleep(30)
+      }
+      wc.sendInputEvent({ type: 'mouseUp', x: x + dx, y: y + dy, button: 'left', clickCount: 1 })
+      await sleep(200)
+    }
+    const before = await rect('.editor-wrap')
+    const splitter = await rect('.splitter')
+    await drag(Math.round(splitter.x + splitter.w / 2), Math.round(splitter.y + splitter.h / 2), 0, 120)
+    log(`editor height: ${Math.round(before.h)} -> ${Math.round((await rect('.editor-wrap')).h)}`)
+
+    const headerNames = `[...document.querySelectorAll('.thead .th:not(.rownum) .th-label')].map((l) => l.textContent).join(' | ')`
+    const nameHeader = `[...document.querySelectorAll('.thead .th')].find((h) => h.querySelector('.th-label')?.textContent === 'Name')`
+    const nameWidth = () => js<number>(`Math.round(${nameHeader}.getBoundingClientRect().width)`)
+    const widthBefore = await nameWidth()
+    const resizer = await js<{ x: number; y: number }>(
+      `(() => { const r = ${nameHeader}.querySelector('.col-resizer').getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) } })()`
+    )
+    await drag(resizer.x, resizer.y, 90, 0)
+    log(`Name column width: ${widthBefore} -> ${await nameWidth()}`)
+
+    log(`columns before reorder: ${await js<string>(headerNames)}`)
+    await js(`(() => {
+      const headers = [...document.querySelectorAll('.thead .th')]
+      const source = headers.find((h) => h.querySelector('.th-label')?.textContent === 'Owner.Name')
+      const target = headers.find((h) => h.querySelector('.th-label')?.textContent === 'Id')
+      const dt = new DataTransfer()
+      const r = target.getBoundingClientRect()
+      const at = { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + 2, clientY: r.top + 5 }
+      source.dispatchEvent(new DragEvent('dragstart', at))
+      return new Promise((resolve) => setTimeout(() => {
+        target.dispatchEvent(new DragEvent('dragover', at))
+        setTimeout(() => {
+          target.dispatchEvent(new DragEvent('drop', at))
+          source.dispatchEvent(new DragEvent('dragend', at))
+          resolve(true)
+        }, 50)
+      }, 50))
+    })()`)
+    await sleep(200)
+    log(`columns after reorder: ${await js<string>(headerNames)}`)
+    await shot('1b-layout')
+
     await clickButton('records')
     await waitFor(`!!document.querySelector('.subquery .tr')`, 'subquery popup')
     log(`subquery rows: ${await js<number>(`document.querySelectorAll('.subquery .tr').length`)}`)

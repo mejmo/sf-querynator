@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react'
 import type { SfRecord } from '../../../shared/types'
 import { toCsv, toJson, toTsv } from '../../../soql/export'
-import { flattenRecords } from '../../../soql/flatten'
+import { flattenRecords, type FlatTable } from '../../../soql/flatten'
 import { useStore } from '../store'
-import { DataTable } from './DataTable'
+import { DataTable, useColumnLayout } from './DataTable'
 import { Modal } from './Modal'
 
 export function ResultsGrid() {
   const { result, loadingMore, running, loadMore, cancel, notify } = useStore()
   const [subquery, setSubquery] = useState<{ column: string; records: SfRecord[] } | null>(null)
   const table = useMemo(() => flattenRecords(result?.records ?? []), [result?.records])
-  const subTable = useMemo(() => (subquery ? flattenRecords(subquery.records) : null), [subquery])
+  const layout = useColumnLayout(table)
+  // Exports follow the order the user arranged the columns in.
+  const ordered: FlatTable = { ...table, columns: layout.order }
 
   if (!result) {
     return (
@@ -27,7 +29,7 @@ export function ResultsGrid() {
   }
 
   const copy = async () => {
-    await navigator.clipboard.writeText(toTsv(table))
+    await navigator.clipboard.writeText(toTsv(ordered))
     notify(`Copied ${table.rows.length} rows — paste into a spreadsheet`)
   }
 
@@ -47,7 +49,7 @@ export function ResultsGrid() {
           ) : (
             <button onClick={() => void loadMore()}>Load more</button>
           ))}
-        <button onClick={() => void save('results.csv', toCsv(table))} disabled={loaded === 0}>
+        <button onClick={() => void save('results.csv', toCsv(ordered))} disabled={loaded === 0}>
           CSV
         </button>
         <button onClick={() => void save('results.json', toJson(result.records))} disabled={loaded === 0}>
@@ -60,13 +62,20 @@ export function ResultsGrid() {
       {loaded === 0 ? (
         <div className="empty-state">No rows returned.</div>
       ) : (
-        <DataTable table={table} onOpenSubquery={(column, records) => setSubquery({ column, records })} />
+        <DataTable table={table} layout={layout} onOpenSubquery={(column, records) => setSubquery({ column, records })} />
       )}
-      {subquery && subTable && (
+      {subquery && (
         <Modal title={`${subquery.column} (${subquery.records.length})`} className="subquery" onClose={() => setSubquery(null)}>
-          <DataTable table={subTable} onOpenSubquery={(column, records) => setSubquery({ column, records })} />
+          <SubqueryTable key={subquery.column + subquery.records.length} records={subquery.records} onOpen={(column, records) => setSubquery({ column, records })} />
         </Modal>
       )}
     </div>
   )
+}
+
+/** A child subquery's records in the popup, with its own column layout. */
+function SubqueryTable({ records, onOpen }: { records: SfRecord[]; onOpen(column: string, records: SfRecord[]): void }) {
+  const table = useMemo(() => flattenRecords(records), [records])
+  const layout = useColumnLayout(table)
+  return <DataTable table={table} layout={layout} onOpenSubquery={onOpen} />
 }

@@ -7,6 +7,7 @@ import { ObjectExplorer } from './components/ObjectExplorer'
 import { ResultsGrid } from './components/ResultsGrid'
 import { SettingsDialog } from './components/SettingsDialog'
 import { SoqlEditor, type SoqlEditorHandle } from './components/SoqlEditor'
+import { Splitter, useEditorHeight } from './components/Splitter'
 import { UserCard } from './components/UserCard'
 import { createMetadataSource, setActiveMetadata } from './metadata'
 import { setFormatErrorHandler } from './monaco/setup'
@@ -15,6 +16,9 @@ import { useStore } from './store'
 export function App() {
   const s = useStore()
   const editorRef = useRef<SoqlEditorHandle>(null)
+  const editorWrapRef = useRef<HTMLDivElement>(null)
+  const queryPanelRef = useRef<HTMLDivElement>(null)
+  const [editorHeight, setEditorHeight] = useEditorHeight()
   const connected = s.status === 'connected'
   const hasAiKey = !!s.settings?.hasOpenAiKey
 
@@ -67,10 +71,11 @@ export function App() {
           <div className="tab-panel" hidden={s.tab !== 'objects'}>
             <ObjectExplorer active={s.tab === 'objects'} />
           </div>
-          <div className="tab-panel" hidden={s.tab !== 'query'}>
-          <div className="editor-wrap">
+          <div className="tab-panel" hidden={s.tab !== 'query'} ref={queryPanelRef}>
+          <div className="editor-wrap" ref={editorWrapRef} style={{ height: editorHeight }}>
             <SoqlEditor ref={editorRef} value={s.query} onChange={s.setQuery} onRun={() => void useStore.getState().run()} error={s.queryError} />
           </div>
+          <Splitter target={editorWrapRef} container={queryPanelRef} onResize={setEditorHeight} />
           <div className="toolbar">
             {s.running ? (
               <button onClick={() => void s.cancel()}>
