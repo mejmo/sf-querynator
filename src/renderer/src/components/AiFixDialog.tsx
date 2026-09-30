@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AiSuggestion, AppError } from '../../../shared/types'
+import { beautifyOrKeep } from '../../../soql/format'
 import { monaco, SOQL, THEME } from '../monaco/setup'
 import { useStore } from '../store'
 import { Modal } from './Modal'
 
 export function AiFixDialog() {
   const { envId, query, queryError, loadQuery, setAiOpen, setSettingsOpen } = useStore()
-  // Snapshot what we asked about, so edits behind the dialog don't change the diff.
-  const [original] = useState(query)
+  // Snapshot what we asked about (beautified, so both sides of the diff share one layout).
+  const [original] = useState(() => beautifyOrKeep(query))
   const [suggestion, setSuggestion] = useState<AiSuggestion | null>(null)
   const [error, setError] = useState<AppError | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -22,7 +23,7 @@ export function AiFixDialog() {
     setError(null)
     void window.api.fixQuery(envId, original, queryError).then((r) => {
       if (stale) return
-      if (r.ok) setSuggestion(r.value)
+      if (r.ok) setSuggestion({ ...r.value, query: beautifyOrKeep(r.value.query) })
       else setError(r.error)
     })
     return () => {

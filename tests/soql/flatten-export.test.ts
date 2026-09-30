@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { flattenRecords } from '../../src/soql/flatten'
 import { toCsv, toJson, toTsv } from '../../src/soql/export'
-import { beautify, parseErrorPosition } from '../../src/soql/format'
+import { beautify, beautifyOrKeep, parseErrorPosition } from '../../src/soql/format'
 
 const records = [
   {
@@ -75,6 +75,13 @@ describe('beautify', () => {
     const r = beautify('select id fro account')
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error).toMatch(/FROM/)
+  })
+})
+
+describe('beautifyOrKeep', () => {
+  it('formats valid SOQL and leaves unparseable text untouched', () => {
+    expect(beautifyOrKeep('select Id from Account')).toBe('SELECT Id\nFROM Account')
+    expect(beautifyOrKeep('select Id fro Account')).toBe('select Id fro Account')
   })
 })
 

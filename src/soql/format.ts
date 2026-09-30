@@ -10,6 +10,12 @@ export function beautify(soql: string): BeautifyResult {
   }
 }
 
+/** Beautified text, or the text unchanged when it can't be parsed (e.g. the broken query being fixed). */
+export function beautifyOrKeep(soql: string): string {
+  const r = beautify(soql)
+  return r.ok ? r.text : soql
+}
+
 /** Salesforce MALFORMED_QUERY messages contain "Row:1:Column:11" (both 1-based). */
 export function parseErrorPosition(message: string): { line: number; column: number } | null {
   const m = /Row:(\d+):Column:(\d+)/.exec(message)
