@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastEnvironmentId: null
 }
 
-const STRING_FIELDS = ['loginUrl', 'authUrl', 'tokenUrl', 'clientId', 'scope', 'redirectUri', 'sfTokenUrl', 'apiVersion'] as const
+const STRING_FIELDS = ['loginUrl', 'instanceUrl', 'authUrl', 'tokenUrl', 'clientId', 'scope', 'redirectUri', 'sfTokenUrl', 'apiVersion'] as const
 
 /** Environments saved before auth types existed: Azure ones have an authUrl, Salesforce OAuth ones a loginUrl. */
 function upgradeEnvironment(raw: Partial<Environment>): Environment | null {

@@ -23,6 +23,7 @@ import { findRootObject } from '../soql/context'
 import { suggestFix } from './ai/openai'
 import { buildAuthorizeUrl, createPkce, createState, exchangeCode, parseCallback, refreshAzureToken, type AzureTokenResponse } from './auth/azure'
 import type { AuthorizeFn } from './auth/loginWindow'
+import { identifyToken } from './auth/pastedToken'
 import { buildSalesforceAuthorizeUrl, exchangeSalesforceCode, refreshSalesforceToken, revokeSalesforceToken } from './auth/salesforce'
 import { fetchSalesforceToken, parseIdentityUrl, SF_TOKEN_UNAUTHORIZED } from './auth/sfToken'
 import { ConfigError, OAuthError, SessionExpiredError, errorMessage, isAbortError, type FetchFn } from './errors'
@@ -52,12 +53,13 @@ export interface ServiceDeps {
   openAiUrl?: string
 }
 
-const STRING_KEYS = ['name', 'loginUrl', 'authUrl', 'tokenUrl', 'clientId', 'scope', 'redirectUri', 'sfTokenUrl', 'apiVersion'] as const
+const STRING_KEYS = ['name', 'loginUrl', 'instanceUrl', 'authUrl', 'tokenUrl', 'clientId', 'scope', 'redirectUri', 'sfTokenUrl', 'apiVersion'] as const
 
 /** Fields that matter per auth type; the others are blanked and left out of exports. */
 const KEYS_BY_TYPE: Record<AuthType, (keyof EnvironmentConfig)[]> = {
   salesforce: ['name', 'authType', 'loginUrl', 'clientId', 'redirectUri', 'apiVersion'],
-  azure: ['name', 'authType', 'authUrl', 'tokenUrl', 'clientId', 'scope', 'redirectUri', 'sfTokenUrl', 'apiVersion']
+  azure: ['name', 'authType', 'authUrl', 'tokenUrl', 'clientId', 'scope', 'redirectUri', 'sfTokenUrl', 'apiVersion'],
+  token: ['name', 'authType', 'instanceUrl', 'apiVersion']
 }
 
 // Plain http is only allowed for local mock servers.
@@ -67,14 +69,19 @@ const ANY_URL = /^[a-z][a-z0-9+.-]*:\/\/\S+$/i
 function normalizeConfig(input: Partial<EnvironmentConfig>): EnvironmentConfig {
   // Files exported before auth types existed are Azure environments.
   const authType: AuthType = input.authType ?? (input.authUrl ? 'azure' : 'salesforce')
-  if (authType !== 'azure' && authType !== 'salesforce') throw new ConfigError(`Unknown authentication type: ${String(authType)}`)
+  if (!(authType in KEYS_BY_TYPE)) throw new ConfigError(`Unknown authentication type: ${String(authType)}`)
   const relevant = new Set(KEYS_BY_TYPE[authType])
   const c = { authType } as EnvironmentConfig
   for (const k of STRING_KEYS) c[k] = relevant.has(k) ? String(input[k] ?? '').trim() : ''
   if (!c.name) throw new ConfigError('Name is required')
+  if (!/^\d+\.0$/.test(c.apiVersion)) throw new ConfigError('API version must look like 62.0')
+  if (authType === 'token') {
+    c.instanceUrl = c.instanceUrl.replace(/\/+$/, '')
+    if (!HTTP_URL.test(c.instanceUrl)) throw new ConfigError('Instance URL must look like https://yourorg.my.salesforce.com')
+    return c
+  }
   if (!c.clientId) throw new ConfigError(authType === 'salesforce' ? 'Consumer Key is required' : 'Client ID is required')
   if (!ANY_URL.test(c.redirectUri)) throw new ConfigError('Callback URL must be a URL, e.g. http://localhost:1717/oauth/callback or msauth://…')
-  if (!/^\d+\.0$/.test(c.apiVersion)) throw new ConfigError('API version must look like 62.0')
   if (authType === 'salesforce') {
     c.loginUrl = c.loginUrl.replace(/\/+$/, '')
     if (!HTTP_URL.test(c.loginUrl)) throw new ConfigError('Login URL must look like https://login.salesforce.com')
@@ -249,8 +256,12 @@ export class AppService implements ServiceApi {
   }
 
   /** Get a fresh Salesforce access token for the account and store it. */
-  private renewSalesforceToken(env: Environment, accountId: string): Promise<SfConnection> {
-    return env.authType === 'salesforce' ? this.renewViaRefreshToken(env, accountId) : this.renewViaTokenService(env, accountId)
+  private async renewSalesforceToken(env: Environment, accountId: string): Promise<SfConnection> {
+    if (env.authType === 'salesforce') return this.renewViaRefreshToken(env, accountId)
+    if (env.authType === 'azure') return this.renewViaTokenService(env, accountId)
+    // A pasted token can't be renewed.
+    await this.deps.secrets.clearAccountTokens(env.id, accountId)
+    throw new SessionExpiredError('The access token is no longer valid. Log in with a new token.')
   }
 
   private async renewViaRefreshToken(env: Environment, accountId: string): Promise<SfConnection> {
@@ -360,8 +371,9 @@ export class AppService implements ServiceApi {
     }
   }
 
-  async login(envId: string): Promise<EnvSession> {
+  async login(envId: string, accessToken?: string): Promise<EnvSession> {
     const env = await this.env(envId)
+    if (env.authType === 'token') return this.loginWithToken(env, accessToken?.trim() ?? '')
     this.loginAbort?.abort()
     const abort = new AbortController()
     this.loginAbort = abort
@@ -389,6 +401,17 @@ export class AppService implements ServiceApi {
     } finally {
       if (this.loginAbort === abort) this.loginAbort = null
     }
+  }
+
+  /** No login flow: identify the pasted token's user and keep the token for that account. */
+  private async loginWithToken(env: Environment, accessToken: string): Promise<EnvSession> {
+    if (!accessToken) throw new ConfigError('Paste an access token.')
+    const { userId, orgId } = await identifyToken(this.deps.fetchFn, { instanceUrl: env.instanceUrl, apiVersion: env.apiVersion, accessToken })
+    await this.deps.secrets.clearAccountTokens(env.id, userId)
+    await this.deps.secrets.updateAccount(env.id, userId, { accessToken, instanceUrl: env.instanceUrl, orgId })
+    await this.deps.secrets.setActiveAccount(env.id, userId)
+    await this.rememberEnvironment(env.id)
+    return this.session(env.id, await this.connectedState(env, userId))
   }
 
   /** Stores the new account's tokens and returns its Salesforce user id. */

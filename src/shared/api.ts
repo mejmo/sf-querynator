@@ -21,8 +21,8 @@ export interface Api {
   setOpenAiKey(key: string | null): Promise<Result<void>>
   /** Reconnect the environment's active user (if any) and list its users. */
   connect(envId: string): Promise<Result<EnvSession>>
-  /** Sign in (new or existing user); the signed-in user becomes active. */
-  login(envId: string): Promise<Result<EnvSession>>
+  /** Sign in (new or existing user); the signed-in user becomes active. Auth type `token` takes the pasted token. */
+  login(envId: string, accessToken?: string): Promise<Result<EnvSession>>
   cancelLogin(): Promise<Result<void>>
   switchAccount(envId: string, accountId: string): Promise<Result<EnvSession>>
   /** Forget the active user's tokens and remove it from the list. */

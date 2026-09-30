@@ -139,6 +139,11 @@ createServer((req, res) => {
     return
   }
   if (!/^Bearer MOCK_AT-\d+$/.test(req.headers.authorization ?? '')) return send(res, 401, [{ errorCode: 'INVALID_SESSION_ID', message: 'Session expired' }])
+  // Who owns a (pasted) access token.
+  if (p === '/services/oauth2/userinfo') {
+    const n = /MOCK_AT-(\d+)/.exec(req.headers.authorization)[1]
+    return send(res, 200, { user_id: userId(n), organization_id: ORG, preferred_username: `user${n}@mock.test.prod` })
+  }
   if (p === '/services/data/v62.0/query' || p === '/services/data/v62.0/queryAll') {
     const q = url.searchParams.get('q') ?? ''
     if (/FROM User/i.test(q)) {

@@ -8,7 +8,7 @@
 
 ## Features
 
-- **Salesforce OAuth** or **Azure AD SSO** login, several environments, several users per environment
+- **Salesforce OAuth**, **Azure AD SSO** or a **pasted access token**, several environments, several users per environment
 - **SOQL editor** with highlighting, Beautify and context-aware autocomplete (fields, relationships, picklists, date literals)
 - **Results grid** with Load more, subquery drill-down and CSV / JSON / clipboard export
 - **Objects tab** to browse objects, fields, picklist values and child relationships
@@ -32,6 +32,10 @@ callback URL `http://localhost:1717/oauth/callback`, **Require PKCE**, and the `
 | Consumer Key | from the app |
 | Callback URL | same as in the app (nothing listens there — the app window catches the redirect) |
 | Client secret | only if the app requires it |
+
+**Access token (paste)** — no login flow: set the **Instance URL** (e.g. `https://yourorg.my.salesforce.com`);
+**Login** then asks for an access token, e.g. the "Access Token" from `sf org display --target-org <alias>`. It's stored
+encrypted and used until it expires.
 
 **Azure SSO → token service** — for orgs behind a service that issues Salesforce tokens for Azure AD tokens:
 

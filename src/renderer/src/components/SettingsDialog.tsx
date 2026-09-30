@@ -14,6 +14,7 @@ const blankForm: EnvForm = {
   name: '',
   authType: 'salesforce',
   loginUrl: 'https://login.salesforce.com',
+  instanceUrl: '',
   authUrl: '',
   tokenUrl: '',
   clientId: '',
@@ -34,6 +35,11 @@ const AUTH_TYPES: { value: AuthType; label: string; help: string }[] = [
     help:
       'Salesforce login in a Querynator window (OAuth web server flow with PKCE). Needs a Connected App or External Client ' +
       'App in the org with this Callback URL, PKCE enabled and the api and refresh_token scopes.'
+  },
+  {
+    value: 'token',
+    label: 'Access token (paste)',
+    help: 'No login flow: Login asks you to paste an access token (e.g. from “sf org display”). It is stored encrypted until it expires.'
   },
   {
     value: 'azure',
@@ -59,6 +65,11 @@ const FIELDS: Record<AuthType, Field[]> = {
     { key: 'loginUrl', label: 'Login URL', placeholder: 'https://login.salesforce.com', help: 'login.salesforce.com, test.salesforce.com (sandbox) or your My Domain URL.', mono: true, list: 'login-urls' },
     { key: 'clientId', label: 'Consumer Key', help: 'From the Connected App / External Client App.', mono: true },
     { key: 'redirectUri', label: 'Callback URL', help: 'Must match the app\'s callback URL. Nothing needs to listen there; Querynator catches the redirect.', mono: true },
+    { key: 'apiVersion', label: 'API version' }
+  ],
+  token: [
+    { key: 'name', label: 'Name', placeholder: 'Dev sandbox' },
+    { key: 'instanceUrl', label: 'Instance URL', placeholder: 'https://yourorg.my.salesforce.com', help: 'The org the tokens belong to (“Instance Url” in sf org display).', mono: true },
     { key: 'apiVersion', label: 'API version' }
   ],
   azure: [
@@ -199,18 +210,22 @@ export function SettingsDialog() {
               <option key={u} value={u} />
             ))}
           </datalist>
-          <label htmlFor="env-secret">Client secret</label>
-          <input
-            id="env-secret"
-            type="password"
-            value={form.clientSecret}
-            onChange={(e) => update({ clientSecret: e.target.value, clearSecret: false })}
-            placeholder={hasSecret ? '•••••• stored — leave empty to keep' : 'Optional — not needed for public clients'}
-          />
-          {hasSecret && (
-            <label className="help">
-              <input type="checkbox" checked={form.clearSecret} onChange={(e) => update({ clearSecret: e.target.checked })} /> Remove stored secret
-            </label>
+          {form.authType !== 'token' && (
+            <>
+            <label htmlFor="env-secret">Client secret</label>
+            <input
+              id="env-secret"
+              type="password"
+              value={form.clientSecret}
+              onChange={(e) => update({ clientSecret: e.target.value, clearSecret: false })}
+              placeholder={hasSecret ? '•••••• stored — leave empty to keep' : 'Optional — not needed for public clients'}
+            />
+            {hasSecret && (
+              <label className="help">
+                <input type="checkbox" checked={form.clearSecret} onChange={(e) => update({ clearSecret: e.target.checked })} /> Remove stored secret
+              </label>
+            )}
+            </>
           )}
         </div>
         <div className="form-actions">

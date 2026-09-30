@@ -29,7 +29,7 @@ describe('SettingsStore', () => {
     const s = new SettingsStore(join(dir, 'settings.json'))
     await Promise.all(
       [1, 2, 3].map((n) =>
-        s.update((x) => ({ ...x, environments: [...x.environments, { id: `${n}`, name: `E${n}`, authType: 'azure' as const, loginUrl: '', authUrl: '', tokenUrl: '', clientId: '', scope: '', redirectUri: '', sfTokenUrl: '', apiVersion: '' }] }))
+        s.update((x) => ({ ...x, environments: [...x.environments, { id: `${n}`, name: `E${n}`, authType: 'azure' as const, loginUrl: '', instanceUrl: '', authUrl: '', tokenUrl: '', clientId: '', scope: '', redirectUri: '', sfTokenUrl: '', apiVersion: '' }] }))
       )
     )
     expect((await s.load()).environments.map((e) => e.id).sort()).toEqual(['1', '2', '3'])

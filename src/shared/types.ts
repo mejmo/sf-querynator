@@ -2,8 +2,9 @@
  * How users of an environment log in:
  * - `salesforce`: Salesforce OAuth (web server flow + PKCE) with a Connected App / External Client App.
  * - `azure`: Azure AD sign-in, then the Azure token is exchanged for a Salesforce token at `sfTokenUrl`.
+ * - `token`: no login flow; the user pastes an access token for `instanceUrl`.
  */
-export type AuthType = 'salesforce' | 'azure'
+export type AuthType = 'salesforce' | 'azure' | 'token'
 
 /** Callback suggested for Salesforce OAuth; the app intercepts it, nothing needs to listen there. */
 export const DEFAULT_SALESFORCE_REDIRECT = 'http://localhost:1717/oauth/callback'
@@ -17,6 +18,8 @@ export interface EnvironmentConfig {
   authType: AuthType
   /** Salesforce OAuth: login host, e.g. https://login.salesforce.com, https://test.salesforce.com or a My Domain */
   loginUrl: string
+  /** Pasted token: the org's instance URL, e.g. https://acme.my.salesforce.com */
+  instanceUrl: string
   /** Azure AD authorize endpoint */
   authUrl: string
   /** Azure AD token endpoint */

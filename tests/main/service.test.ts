@@ -22,6 +22,7 @@ const ENV_INPUT: EnvironmentConfig = {
   name: 'UAT',
   authType: 'azure',
   loginUrl: '',
+  instanceUrl: '',
   authUrl: 'https://login.microsoftonline.com/tenant/oauth2/v2.0/authorize',
   tokenUrl: AZURE_TOKEN_URL,
   clientId: 'CID',
@@ -120,7 +121,7 @@ describe('environments', () => {
     const { service } = setup()
     const env = await service.saveEnvironment(null, { ...ENV_INPUT, clientSecret: 'TOP-SECRET' })
     const file = await service.buildEnvironmentFile([env.id])
-    const { loginUrl: _unused, ...azureOnly } = ENV_INPUT
+    const { loginUrl: _unused, instanceUrl: _unused2, ...azureOnly } = ENV_INPUT
     expect(file).toEqual({ format: 'querynator-environments', version: 1, environments: [azureOnly] })
     expect(JSON.stringify(file)).not.toContain('TOP-SECRET')
     await expect(service.buildEnvironmentFile(['nope'])).rejects.toBeInstanceOf(ConfigError)
@@ -160,13 +161,14 @@ describe('environments', () => {
     const envs = await service.importEnvironments(JSON.parse(await readFile('scripts/mock-environment.json', 'utf8')))
     expect(envs.map((e) => [e.name, e.authType])).toEqual([
       ['Mock org', 'azure'],
-      ['Mock SF OAuth', 'salesforce']
+      ['Mock SF OAuth', 'salesforce'],
+      ['Mock token', 'token']
     ])
   })
 
   it('infers the auth type of environments saved before auth types existed', async () => {
     const { stores, service } = setup()
-    const { authType: _a, loginUrl: _l, ...legacyAzure } = ENV_INPUT
+    const { authType: _a, loginUrl: _l, instanceUrl: _i, ...legacyAzure } = ENV_INPUT
     await stores.settings.update((s) => ({
       ...s,
       environments: [
@@ -185,7 +187,7 @@ describe('environments', () => {
 
   it('imports files exported before auth types existed as Azure environments', async () => {
     const { service } = setup()
-    const { authType: _a, loginUrl: _l, ...legacyAzure } = ENV_INPUT
+    const { authType: _a, loginUrl: _l, instanceUrl: _i, ...legacyAzure } = ENV_INPUT
     const [env] = await service.importEnvironments({ format: 'querynator-environments', version: 1, environments: [legacyAzure] })
     expect(env.authType).toBe('azure')
   })
@@ -470,6 +472,7 @@ describe('Salesforce OAuth environments', () => {
     name: 'Prod',
     authType: 'salesforce',
     loginUrl: `${LOGIN}/`,
+    instanceUrl: '',
     authUrl: 'ignored',
     tokenUrl: '',
     clientId: 'CONSUMER_KEY',
@@ -570,5 +573,73 @@ describe('Salesforce OAuth environments', () => {
     f.once(USER_QUERY, json({ totalSize: 1, done: true, records: [USER_ROW] }))
     await service.login(env.id)
     expect(new URLSearchParams(f.requests[0].body).get('client_secret')).toBe('SECRET')
+  })
+})
+
+describe('pasted access token environments', () => {
+  const TOKEN_ENV: EnvironmentConfig = {
+    name: 'Dev',
+    authType: 'token',
+    loginUrl: 'ignored',
+    instanceUrl: `${INSTANCE}/`,
+    authUrl: '',
+    tokenUrl: '',
+    clientId: '',
+    scope: '',
+    redirectUri: '',
+    sfTokenUrl: '',
+    apiVersion: '62.0'
+  }
+
+  async function tokenLoggedIn() {
+    const ctx = setup()
+    const env = await ctx.service.saveEnvironment(null, TOKEN_ENV)
+    ctx.f.once('GET /services/oauth2/userinfo', json({ user_id: USER_ID, organization_id: ORG_ID }))
+    ctx.f.once(USER_QUERY, json({ totalSize: 1, done: true, records: [USER_ROW] }))
+    const session = await ctx.service.login(env.id, ' PASTED ')
+    return { ...ctx, env, session }
+  }
+
+  it('needs only name, instance URL and API version', async () => {
+    const { service } = setup()
+    const env = await service.saveEnvironment(null, TOKEN_ENV)
+    expect(env).toMatchObject({ authType: 'token', instanceUrl: INSTANCE, loginUrl: '', clientId: '', redirectUri: '' })
+    await expect(service.saveEnvironment(null, { ...TOKEN_ENV, instanceUrl: 'acme.my.salesforce.com' })).rejects.toThrow(/Instance URL/)
+    expect((await service.buildEnvironmentFile([env.id])).environments[0]).toEqual({ name: 'Dev', authType: 'token', instanceUrl: INSTANCE, apiVersion: '62.0' })
+  })
+
+  it('identifies the user of a pasted token and uses it without any login flow', async () => {
+    const { f, deps, stores, env, session } = await tokenLoggedIn()
+    expect(deps.authorize).not.toHaveBeenCalled()
+    expect(f.requests[0]).toMatchObject({ url: `${INSTANCE}/services/oauth2/userinfo`, headers: { authorization: 'Bearer PASTED' } })
+    expect(session.state).toMatchObject({ status: 'connected', user: { name: 'Jane Doe', orgId: ORG_ID, instanceUrl: INSTANCE } })
+    expect(await stores.secrets.getAccount(env.id, USER_ID)).toMatchObject({ accessToken: 'PASTED', instanceUrl: INSTANCE })
+  })
+
+  it('falls back to the Chatter "me" resource when userinfo is not allowed', async () => {
+    const { f, service } = setup()
+    const env = await service.saveEnvironment(null, TOKEN_ENV)
+    f.once('GET /services/oauth2/userinfo', json({ error: 'insufficient_scope' }, 403))
+    f.once('GET /chatter/users/me', json({ id: USER_ID }))
+    f.once('GET /query?q=SELECT%20Id%20FROM%20Organization', json({ totalSize: 1, done: true, records: [{ Id: ORG_ID }] }))
+    f.once(USER_QUERY, json({ totalSize: 1, done: true, records: [USER_ROW] }))
+    const session = await service.login(env.id, 'SESSION_ID')
+    expect(session.state).toMatchObject({ status: 'connected', user: { orgId: ORG_ID } })
+  })
+
+  it('rejects an invalid token and requires one', async () => {
+    const { f, service } = setup()
+    const env = await service.saveEnvironment(null, TOKEN_ENV)
+    f.once('GET /services/oauth2/userinfo', new Response('Bad_OAuth_Token', { status: 401 }))
+    await expect(service.login(env.id, 'BAD')).rejects.toMatchObject({ code: 'INVALID_TOKEN' })
+    await expect(service.login(env.id, '  ')).rejects.toBeInstanceOf(ConfigError)
+  })
+
+  it('an expired token marks the user as needing a new one (no refresh)', async () => {
+    const { f, service, env } = await tokenLoggedIn()
+    f.once(USER_QUERY, json(expired, 401))
+    const session = await service.connect(env.id)
+    expect(session.state).toEqual({ status: 'loggedOut' })
+    expect(session.accounts[0].needsLogin).toBe(true)
   })
 })

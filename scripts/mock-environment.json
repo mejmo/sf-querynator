@@ -20,6 +20,12 @@
       "clientId": "MOCK_CONSUMER_KEY",
       "redirectUri": "http://localhost:1717/oauth/callback",
       "apiVersion": "62.0"
+    },
+    {
+      "name": "Mock token",
+      "authType": "token",
+      "instanceUrl": "http://127.0.0.1:8787",
+      "apiVersion": "62.0"
     }
   ]
 }

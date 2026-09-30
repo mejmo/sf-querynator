@@ -33,6 +33,9 @@ interface State {
   /** Bumped to drop the renderer metadata cache. */
   metadataVersion: number
   tab: 'query' | 'objects'
+  /** Auth type "token": the paste-a-token dialog */
+  tokenPromptOpen: boolean
+  tokenPromptError: string | null
   /** Object shown in the Objects tab */
   explorerObject: string | null
 }
@@ -41,7 +44,9 @@ interface Actions {
   init(): Promise<void>
   refreshSettings(): Promise<void>
   selectEnv(id: string | null): Promise<void>
-  login(): Promise<void>
+  /** Starts the login flow; for auth type "token" opens the paste dialog, or logs in with `accessToken`. */
+  login(accessToken?: string): Promise<void>
+  closeTokenPrompt(): void
   cancelLogin(): Promise<void>
   logout(): Promise<void>
   switchAccount(accountId: string): Promise<void>
@@ -102,6 +107,8 @@ export const useStore = create<State & Actions>((set, get) => {
     aiOpen: false,
     metadataVersion: 0,
     tab: 'query',
+    tokenPromptOpen: false,
+    tokenPromptError: null,
     explorerObject: null,
 
     async init() {
@@ -137,20 +144,28 @@ export const useStore = create<State & Actions>((set, get) => {
       }
     },
 
-    async login() {
-      const { envId } = get()
+    async login(accessToken) {
+      const { envId, settings } = get()
       if (!envId) return
+      const tokenEnv = settings?.environments.find((e) => e.id === envId)?.authType === 'token'
+      if (tokenEnv && accessToken === undefined) {
+        set({ tokenPromptOpen: true, tokenPromptError: null })
+        return
+      }
       // Adding another user may be cancelled: then the current user stays connected.
       const previous = { status: get().status, user: get().user }
       set({ status: 'loggingIn', error: null })
-      const r = await window.api.login(envId)
+      const r = await window.api.login(envId, accessToken)
       if (get().envId !== envId) return
       if (r.ok) {
         if (r.value.activeAccountId !== get().activeAccountId) set({ result: null })
         applySession(r.value)
+        set({ tokenPromptOpen: false, tokenPromptError: null })
       } else {
         set(previous.status === 'connected' ? previous : { status: 'loggedOut', user: null })
-        fail(r.error)
+        // A rejected token is shown in the paste dialog, so another one can be tried right away.
+        if (tokenEnv) set({ tokenPromptError: r.error.message })
+        else fail(r.error)
       }
     },
 
@@ -258,6 +273,7 @@ export const useStore = create<State & Actions>((set, get) => {
     setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
     setAiOpen: (aiOpen) => set({ aiOpen }),
     setTab: (tab) => set({ tab }),
+    closeTokenPrompt: () => set({ tokenPromptOpen: false, tokenPromptError: null }),
     setExplorerObject: (explorerObject) => set({ explorerObject })
   }
 })

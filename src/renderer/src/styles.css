@@ -880,3 +880,23 @@ body.col-dragging * {
   cursor: grabbing !important;
   user-select: none !important;
 }
+
+/* ---- access token prompt ---- */
+.token-prompt {
+  width: 560px;
+}
+.token-prompt .token-input {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  font: 12px var(--mono);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  word-break: break-all;
+}
+.token-prompt .token-input:focus {
+  outline: 1px solid var(--accent);
+}

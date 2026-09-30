@@ -6,6 +6,7 @@ import { HistoryPanel } from './components/HistoryPanel'
 import { ObjectExplorer } from './components/ObjectExplorer'
 import { ResultsGrid } from './components/ResultsGrid'
 import { SettingsDialog } from './components/SettingsDialog'
+import { TokenPrompt } from './components/TokenPrompt'
 import { SoqlEditor, type SoqlEditorHandle } from './components/SoqlEditor'
 import { Splitter, useEditorHeight } from './components/Splitter'
 import { UserCard } from './components/UserCard'
@@ -104,6 +105,7 @@ export function App() {
       </div>
       {s.settingsOpen && <SettingsDialog />}
       {s.aiOpen && <AiFixDialog />}
+      {s.tokenPromptOpen && <TokenPrompt />}
       {s.notice && <div className="toast">{s.notice}</div>}
     </div>
   )
