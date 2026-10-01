@@ -39,5 +39,6 @@
     "email": "noreply@querynator.local"
   },
   "homepage": "https://querynator.local",
-  "desktopName": "querynator.desktop"
+  "desktopName": "querynator.desktop",
+  "license": "MIT"
 }

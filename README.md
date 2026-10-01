@@ -99,3 +99,7 @@ environment from `scripts/mock-environment.json` (plus an `id`), then run
 after `npm run build`. It clicks through the whole app and saves screenshots to `<dir>`.
 
 App data lives in the OS app-data folder (`%APPDATA%\Querynator` on Windows).
+
+## License
+
+[MIT](LICENSE) © DevelMagic s.r.o.
