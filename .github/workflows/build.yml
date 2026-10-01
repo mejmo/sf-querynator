@@ -94,7 +94,7 @@ jobs:
           Write-Host "$($exe.Name): $($sig.Status) — $($sig.SignerCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { throw "Installer signature is $($sig.Status)" }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: querynator-${{ runner.os }}
           path: |
