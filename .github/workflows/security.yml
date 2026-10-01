@@ -17,7 +17,7 @@ jobs:
     name: Dependencies (npm audit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -30,7 +30,7 @@ jobs:
     name: Secrets (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # scan the whole history, not just the last commit
       - name: gitleaks
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     container: semgrep/semgrep:1.177.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: semgrep
         run: >
           semgrep scan --error --metrics off
@@ -52,7 +52,7 @@ jobs:
     name: Electron config (Electronegativity)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 24
