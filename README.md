@@ -88,6 +88,11 @@ tests/          Vitest
 scripts/        mock Azure + Salesforce server for smoke tests
 ```
 
+**Windows code signing** (optional, Azure Artifact Signing): add repository secrets `AZURE_TENANT_ID`,
+`AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (an app registration with the *Artifact Signing Certificate Profile Signer*
+role) and repository variables `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE`,
+`AZURE_SIGNING_PUBLISHER` (the certificate's CN). Release builds are then signed; without them they stay unsigned.
+
 **Smoke test without an org:** run `node scripts/mock-salesforce.mjs 8787`, create `<profile>/settings.json` with the
 environment from `scripts/mock-environment.json` (plus an `id`), then run
 `QN_USER_DATA=<profile> QN_SMOKE=<dir> QN_OPENAI_URL=http://127.0.0.1:8787/v1/chat/completions npx electron-vite preview`

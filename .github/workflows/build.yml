@@ -56,10 +56,43 @@ jobs:
       - run: npm run build
 
       - name: Package
-        run: npx electron-builder ${{ matrix.args }} --publish never
+        shell: bash
+        run: |
+          args=(${{ matrix.args }} --publish never)
+          # Windows: sign with Azure Artifact Signing when the repository is configured for it (see README).
+          if [ "$RUNNER_OS" = "Windows" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$SIGNING_ENDPOINT" ]; then
+            echo "Signing Windows build with Azure Artifact Signing (profile: $SIGNING_PROFILE)"
+            echo "SIGNED=true" >> "$GITHUB_ENV"
+            args+=(
+              "-c.win.azureSignOptions.endpoint=$SIGNING_ENDPOINT"
+              "-c.win.azureSignOptions.codeSigningAccountName=$SIGNING_ACCOUNT"
+              "-c.win.azureSignOptions.certificateProfileName=$SIGNING_PROFILE"
+              "-c.win.azureSignOptions.publisherName=$SIGNING_PUBLISHER"
+            )
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            echo "::notice::Windows build is not signed (Azure signing secrets/variables not configured)"
+          fi
+          npx electron-builder "${args[@]}"
         env:
           # No Apple Developer certificate: the macOS app is ad-hoc signed (see electron-builder.yml).
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Azure Artifact Signing (Windows). Secrets: app registration credentials. Variables: account details.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+
+      - name: Verify Windows signature
+        if: runner.os == 'Windows' && env.SIGNED == 'true'
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist -Filter *.exe | Select-Object -First 1
+          $sig = Get-AuthenticodeSignature $exe.FullName
+          Write-Host "$($exe.Name): $($sig.Status) — $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw "Installer signature is $($sig.Status)" }
 
       - uses: actions/upload-artifact@v4
         with:
