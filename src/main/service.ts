@@ -19,6 +19,7 @@ import {
   type SObjectDescribe
 } from '../shared/types'
 import { maskLineComments, splitLineComments } from '../soql/comments'
+import { environmentEntries } from '../shared/environmentFile'
 import { findRootObject } from '../soql/context'
 import { suggestFix } from './ai/openai'
 import { buildAuthorizeUrl, createPkce, createState, exchangeCode, parseCallback, refreshAzureToken, type AzureTokenResponse } from './auth/azure'
@@ -161,13 +162,8 @@ export class AppService implements ServiceApi {
    * matches an existing one (case-insensitive) updates it; others are created. Everything is validated first.
    */
   async importEnvironments(data: unknown): Promise<Environment[]> {
-    const list: unknown[] =
-      data && typeof data === 'object' && 'environments' in data && Array.isArray((data as EnvironmentFile).environments)
-        ? (data as EnvironmentFile).environments
-        : Array.isArray(data)
-          ? data
-          : [data]
-    if (list.length === 0) throw new ConfigError('The file contains no environments')
+    const list = environmentEntries(data)
+    if (list.length === 0) throw new ConfigError('The JSON contains no environments')
     const configs = list.map((item, i) => {
       if (!item || typeof item !== 'object') throw new ConfigError(`Environment #${i + 1} is not an object`)
       try {

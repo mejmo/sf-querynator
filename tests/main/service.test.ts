@@ -152,7 +152,7 @@ describe('environments', () => {
     await expect(service.importEnvironments({ environments: [{ ...ENV_INPUT, name: 'Ok' }, { ...ENV_INPUT, tokenUrl: '' }] })).rejects.toThrow(
       /Environment #2: Token URL/
     )
-    await expect(service.importEnvironments({ environments: [] })).rejects.toThrow(/no environments/)
+    await expect(service.importEnvironments({ environments: [] })).rejects.toThrow(/contains no environments/)
     expect((await service.getSettings()).environments).toEqual([])
   })
 

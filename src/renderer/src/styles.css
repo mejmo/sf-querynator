@@ -900,3 +900,86 @@ body.col-dragging * {
 .token-prompt .token-input:focus {
   outline: 1px solid var(--accent);
 }
+
+/* ---- environment export / import ---- */
+.env-transfer {
+  width: 820px;
+  height: 560px;
+}
+.transfer-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+.transfer-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.transfer-list ul {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+}
+.transfer-list li label,
+.transfer-list .select-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+.transfer-list li .muted {
+  margin-left: auto;
+  font-size: 11px;
+}
+.transfer-list .select-all {
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.transfer-json {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.json-box {
+  flex: 1;
+  width: 100%;
+  min-height: 160px;
+  resize: none;
+  font: 12px/1.45 var(--mono);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  user-select: text;
+}
+.json-box:focus {
+  outline: 1px solid var(--accent);
+}
+.import-box {
+  flex: 1;
+}
+.import-preview {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 120px;
+  overflow: auto;
+}
+.import-preview li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.modal:focus {
+  outline: none;
+}

@@ -318,6 +318,38 @@ export async function runSmoke(win: BrowserWindow, dir: string) {
     await waitFor(`!!document.querySelector('#env-authType')`, 'settings dialog')
     log(`settings auth type: ${await js<string>(`document.querySelector('#env-authType').value`)}; fields: ${await js<string>(`[...document.querySelectorAll('.settings .form label[for^="env-"]')].map((l) => l.textContent).join(', ')`)}`)
     await shot('9-settings-salesforce')
+
+    // Export: environments chosen with checkboxes, JSON built live; Escape closes only the export dialog.
+    const exportedNames = `JSON.parse(document.querySelector('.env-transfer .json-box').value).environments.map((e) => e.name).join(', ')`
+    await clickButton('Export…')
+    await waitFor(`document.querySelector('.env-transfer .json-box')?.value.includes('querynator-environments')`, 'export JSON')
+    log(`export (all): ${await js<string>(exportedNames)}`)
+    await js(`[...document.querySelectorAll('.env-transfer .transfer-list li label')].find((l) => l.textContent.includes('Mock token')).querySelector('input').click()`)
+    await waitFor(`!document.querySelector('.env-transfer .json-box').value.includes('Mock token')`, 'export JSON without Mock token')
+    log(`export (unticked Mock token): ${await js<string>(exportedNames)}`)
+    await shot('11-export')
+    key('Escape')
+    await waitFor(`!document.querySelector('.env-transfer') && !!document.querySelector('#env-authType')`, 'export closed, settings still open')
+    log('Escape closed only the export dialog')
+
+    // Import: pasted JSON is previewed (new / updates existing) and imported.
+    const pastedEnvironments = JSON.stringify([
+      { name: 'Pasted env', authType: 'token', instanceUrl: 'http://127.0.0.1:8787', apiVersion: '62.0' },
+      { name: 'mock token', authType: 'token', instanceUrl: 'http://127.0.0.1:8787', apiVersion: '62.0' }
+    ])
+    await clickButton('Import…')
+    await waitFor(`!!document.querySelector('.env-transfer .import-box')`, 'import dialog')
+    await js(`(() => {
+      const t = document.querySelector('.env-transfer .import-box')
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(t, ${JSON.stringify(pastedEnvironments)})
+      t.dispatchEvent(new Event('input', { bubbles: true }))
+    })()`)
+    await waitFor(`document.querySelectorAll('.import-preview li').length === 2`, 'import preview')
+    log(`import preview: ${await js<string>(`[...document.querySelectorAll('.import-preview li')].map((li) => li.textContent).join(' | ')`)}`)
+    await shot('12-import')
+    await clickButton('Import 2 environments')
+    await waitFor(`!document.querySelector('.env-transfer') && [...document.querySelectorAll('.settings .envlist li')].some((li) => li.textContent === 'Pasted env')`, 'imported environment listed')
+    log(`environments after import: ${await js<string>(`[...document.querySelectorAll('.settings .envlist li')].map((li) => li.textContent).join(', ')`)}`)
     key('Escape')
     log('DONE')
   } catch (e) {

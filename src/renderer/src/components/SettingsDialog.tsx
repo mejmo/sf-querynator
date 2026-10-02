@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DEFAULT_SALESFORCE_REDIRECT, type AuthType, type Environment, type EnvironmentConfig } from '../../../shared/types'
 import { useStore } from '../store'
+import { ExportDialog, ImportDialog } from './EnvironmentTransfer'
 import { Modal } from './Modal'
 
 const DEFAULT_API_VERSION = '62.0'
@@ -124,20 +125,15 @@ export function SettingsDialog() {
     setEditingId(useStore.getState().settings?.environments[0]?.id ?? null)
   }
 
-  const exportEnvs = async (ids: string[]) => {
-    const r = await window.api.exportEnvironments(ids)
-    if (!r.ok) return setFormError(r.error.message)
-    if (r.value) notify(`Exported ${ids.length === 1 ? 'environment' : `${ids.length} environments`}`)
-  }
+  /** Environment ids preselected in the export dialog; null = closed */
+  const [exportIds, setExportIds] = useState<string[] | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
-  const importEnvs = async () => {
-    const r = await window.api.importEnvironments()
-    if (!r.ok) return setFormError(r.error.message)
-    if (r.value.length === 0) return
+  const afterImport = async (imported: Environment[]) => {
+    setImportOpen(false)
     await refreshSettings()
-    setEditingId(r.value[0].id)
-    notify(`Imported ${r.value.map((e) => e.name).join(', ')}`)
-    if (!useStore.getState().envId) await selectEnv(r.value[0].id)
+    setEditingId(imported[0].id)
+    if (!useStore.getState().envId) await selectEnv(imported[0].id)
   }
 
   const saveApp = async () => {
@@ -172,11 +168,11 @@ export function SettingsDialog() {
         </ul>
         <div className="envlist-actions">
           <button onClick={() => setEditingId(null)}>+ Add</button>
-          <button onClick={() => void importEnvs()} title="Import environments from a .json file">
+          <button onClick={() => setImportOpen(true)} title="Import environments from pasted JSON or a file">
             Import…
           </button>
-          <button onClick={() => void exportEnvs(envs.map((e) => e.id))} disabled={envs.length === 0} title="Export all environments">
-            Export all…
+          <button onClick={() => setExportIds(envs.map((e) => e.id))} disabled={envs.length === 0} title="Choose environments and export them as JSON">
+            Export…
           </button>
         </div>
       </div>
@@ -232,7 +228,7 @@ export function SettingsDialog() {
           <button className="primary" onClick={() => void saveEnv()}>
             {editing ? 'Save environment' : 'Add environment'}
           </button>
-          {editing && <button onClick={() => void exportEnvs([editing.id])}>Export…</button>}
+          {editing && <button onClick={() => setExportIds([editing.id])}>Export…</button>}
           {editing && (
             <button className="danger" onClick={() => void deleteEnv()}>
               Delete
@@ -272,6 +268,8 @@ export function SettingsDialog() {
           </button>
         </div>
       </div>
+      {exportIds && <ExportDialog environments={envs} initialIds={exportIds} onClose={() => setExportIds(null)} />}
+      {importOpen && <ImportDialog environments={envs} onClose={() => setImportOpen(false)} onImported={(imported) => void afterImport(imported)} />}
     </Modal>
   )
 }
