@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { flattenRecords } from '../../src/soql/flatten'
 import { toCsv, toJson, toTsv } from '../../src/soql/export'
-import { beautify, beautifyOrKeep, parseErrorPosition } from '../../src/soql/format'
+import { beautify, beautifyOrKeep, errorDetail, parseErrorPosition } from '../../src/soql/format'
 
 const records = [
   {
@@ -89,5 +89,15 @@ describe('parseErrorPosition', () => {
   it('extracts row and column', () => {
     expect(parseErrorPosition('\nSELECT Id FRO Account\n ^\nERROR at Row:1:Column:11\nunexpected token')).toEqual({ line: 1, column: 11 })
     expect(parseErrorPosition('No such column')).toBeNull()
+  })
+})
+
+describe('errorDetail', () => {
+  it('drops the echoed query and caret', () => {
+    expect(errorDetail("\nSELECT Id, Nme\n           ^\nERROR at Row:1:Column:12\nNo such column 'Nme' on entity 'Account'.")).toBe("No such column 'Nme' on entity 'Account'.")
+  })
+
+  it('keeps messages without a position', () => {
+    expect(errorDetail('  sObject type Foo is not supported. ')).toBe('sObject type Foo is not supported.')
   })
 })

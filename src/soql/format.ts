@@ -25,3 +25,9 @@ export function parseErrorPosition(message: string): { line: number; column: num
   const m = /Row:(\d+):Column:(\d+)/.exec(message)
   return m ? { line: Number(m[1]), column: Number(m[2]) } : null
 }
+
+/** The explanation after "ERROR at Row:…:Column:…", without the echoed query and caret Salesforce puts before it. */
+export function errorDetail(message: string): string {
+  const m = /ERROR at Row:\d+:Column:\d+\s*\n([\s\S]+)$/.exec(message)
+  return (m ? m[1] : message).trim()
+}

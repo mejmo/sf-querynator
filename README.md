@@ -4,7 +4,7 @@
 
 <p align="center">Desktop SOQL client for Salesforce — Windows, macOS and Linux.</p>
 
-![Query results](docs/images/results.png)
+![Querynator: results grid and an invalid field underlined with the Salesforce error](docs/images/hero.png)
 
 ## Features
 

@@ -90,6 +90,40 @@ export async function runSmoke(win: BrowserWindow, dir: string) {
     await waitFor(`!!document.querySelector('.usercard .name')`, 'user card')
     log(`user: ${await js<string>(`document.querySelector('.usercard .name').textContent`)}`)
 
+    // QN_SHOWCASE=1: only the website/README hero shot. Results of a real query, then a typo with the error hover.
+    if (process.env.QN_SHOWCASE) {
+      const query = (revenueField: string) =>
+        [
+          `SELECT Id, Name, Type, Industry, ${revenueField}, Owner.Name,`,
+          '  (SELECT LastName, Email FROM Contacts ORDER BY LastName)',
+          'FROM Account',
+          "WHERE Type IN ('Customer', 'Partner')",
+          '  AND AnnualRevenue > 1000000',
+          '  AND CreatedDate = LAST_N_DAYS:90',
+          'ORDER BY AnnualRevenue DESC',
+          'LIMIT 250'
+        ].join('\n')
+      await typeInEditor(query('AnnualRevenue'))
+      key('Enter', ['control'])
+      await waitFor(`!!document.querySelector('.results-bar .stats')`, 'results')
+      await typeInEditor(query('AnualRevenue'))
+      key('Enter', ['control'])
+      await waitFor(`document.querySelectorAll('.editor-host .squiggly-error').length > 0`, 'error marker')
+      const squiggle = await js<{ x: number; y: number }>(
+        `(() => { const r = document.querySelector('.editor-host .squiggly-error').getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) } })()`
+      )
+      // Monaco hovers react to real mouse movement; approach the word in a few steps.
+      for (let i = 3; i >= 0; i--) {
+        wc.sendInputEvent({ type: 'mouseMove', x: squiggle.x - i * 6, y: squiggle.y })
+        await sleep(80)
+      }
+      await waitFor(`[...document.querySelectorAll('.monaco-hover')].some((h) => h.offsetParent && h.textContent.includes('No such column'))`, 'error hover')
+      await sleep(400)
+      await shot('hero')
+      log('DONE')
+      return
+    }
+
     await typeInEditor('SELECT Id, Name, Owner.Name, (SELECT LastName FROM Contacts) FROM Account')
     key('Enter', ['control'])
     await waitFor(`!!document.querySelector('.results-bar .stats')`, 'results')

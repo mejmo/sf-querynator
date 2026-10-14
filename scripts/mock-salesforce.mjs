@@ -60,19 +60,101 @@ const describes = {
   User: { name: 'User', label: 'User', fields: [field('Id', 'id'), field('Name'), field('Email', 'email')], childRelationships: [] }
 }
 
-const account = (i) => ({
-  attributes: { type: 'Account', url: `/services/data/v62.0/sobjects/Account/001${i}` },
-  Id: `001${String(i).padStart(15, '0')}`,
-  Name: `Account ${i}`,
-  Owner: i % 7 === 0 ? null : { attributes: { type: 'User' }, Name: `Owner ${i % 5}` },
-  Contacts: i % 3 === 0 ? { totalSize: 2, done: true, records: [{ attributes: { type: 'Contact' }, LastName: 'Doe' }, { attributes: { type: 'Contact' }, LastName: 'Roe' }] } : null
-})
+// Made-up but realistic-looking data (also used for the README and website screenshots).
+const PREFIXES = ['Northwind', 'Blue Harbor', 'Silverline', 'Brightpath', 'Redwood', 'Ironbridge', 'Clearwater', 'Summit', 'Evergreen', 'Lakeside', 'Pinecrest', 'Stonegate', 'Westbrook', 'Oakridge', 'Highland', 'Riverbend', 'Granite Peak', 'Sunfield']
+const SECTORS = [['Logistics', 'Transportation'], ['Energy', 'Energy'], ['Retail', 'Retail'], ['Systems', 'Technology'], ['Foods', 'Food & Beverage'], ['Health', 'Healthcare'], ['Capital', 'Banking'], ['Manufacturing', 'Manufacturing'], ['Media', 'Media'], ['Labs', 'Biotechnology']]
+const OWNERS = ['Jane Mock', 'Tom Becker', 'Ana Silva', 'Lukas Novak', 'Priya Shah']
+const LAST_NAMES = ['Doe', 'Roe', 'Fischer', 'Kowalski', 'Moreau', 'Rossi', 'Tanaka', 'Walsh']
+const TYPES = ['Customer', 'Partner', 'Prospect']
+const account = (i) => {
+  const [suffix, industry] = SECTORS[(i * 7) % SECTORS.length]
+  const name = `${PREFIXES[i % PREFIXES.length]} ${suffix}`
+  const domain = name.toLowerCase().replace(/[^a-z]+/g, '') + '.example'
+  const contacts = Array.from({ length: i % 3 === 0 ? 2 + (i % 2) : 0 }, (_, k) => {
+    const last = LAST_NAMES[(i + k * 3) % LAST_NAMES.length]
+    return { attributes: { type: 'Contact' }, LastName: last, Email: `${last.toLowerCase()}@${domain}` }
+  })
+  return {
+    attributes: { type: 'Account', url: `/services/data/v62.0/sobjects/Account/001${i}` },
+    Id: `001${String(i).padStart(15, '0')}`,
+    Name: name,
+    Type: TYPES[i % TYPES.length],
+    Industry: industry,
+    AnnualRevenue: (((i * 7919) % 480) + 2) * 250000,
+    CreatedDate: new Date(Date.UTC(2026, 9, 1) - ((i * 37) % 90) * 86400000).toISOString().replace('Z', '+0000'),
+    Owner: i % 7 === 0 ? null : { attributes: { type: 'User' }, Name: OWNERS[i % OWNERS.length] },
+    Contacts: contacts.length ? { totalSize: contacts.length, done: true, records: contacts } : null
+  }
+}
+const ACCOUNTS = Array.from({ length: TOTAL }, (_, i) => account(i + 1))
+const ACCOUNT_FIELDS = new Set(describes.Account.fields.map((f) => f.name.toLowerCase()))
 
+/** Top-level SELECT items (subqueries kept whole). */
+const selectItems = (q) => {
+  const m = /^\s*SELECT\s+([\s\S]+?)\s+FROM\s+Account\b/i.exec(q)
+  if (!m) return null
+  const items = []
+  let depth = 0
+  let start = 0
+  const list = m[1]
+  for (let i = 0; i <= list.length; i++) {
+    const c = list[i]
+    if (c === '(') depth++
+    else if (c === ')') depth--
+    else if ((c === ',' && depth === 0) || i === list.length) {
+      items.push({ text: list.slice(start, i).trim(), offset: m.index + m[0].indexOf(list) + start + (list.slice(start, i).length - list.slice(start, i).trimStart().length) })
+      start = i + 1
+    }
+  }
+  return items
+}
+
+/** Salesforce-style INVALID_FIELD for an unknown plain field in the SELECT list, with row/column. */
+const invalidField = (q, items) => {
+  const bad = items.find((it) => /^\w+$/.test(it.text) && !ACCOUNT_FIELDS.has(it.text.toLowerCase()))
+  if (!bad) return null
+  const before = q.slice(0, bad.offset).split('\n')
+  const row = before.length
+  const column = before[before.length - 1].length + 1
+  const line = q.split('\n')[row - 1]
+  return {
+    errorCode: 'INVALID_FIELD',
+    message: `\n${line}\n${' '.repeat(column - 1)}^\nERROR at Row:${row}:Column:${column}\nNo such column '${bad.text}' on entity 'Account'. If you are attempting to use a custom field, be sure to append the '__c' after the custom field name. Please reference your WSDL or the describe call for the appropriate names.`
+  }
+}
+
+/** Just enough SOQL for screenshots: Type IN (…), AnnualRevenue > n, ORDER BY field [DESC], LIMIT n, and the selected fields. */
+const runAccountQuery = (q, items) => {
+  let rows = ACCOUNTS
+  const types = /\bType\s+IN\s*\(([^)]*)\)/i.exec(q)
+  if (types) {
+    const allowed = types[1].split(',').map((s) => s.trim().replace(/^'|'$/g, ''))
+    rows = rows.filter((r) => allowed.includes(r.Type))
+  }
+  const min = /\bAnnualRevenue\s*>\s*(\d+)/i.exec(q)
+  if (min) rows = rows.filter((r) => r.AnnualRevenue > Number(min[1]))
+  const order = /\bORDER\s+BY\s+(\w+)(\s+DESC)?/i.exec(q.replace(/\([^()]*\)/g, ''))
+  if (order) {
+    const f = describes.Account.fields.find((x) => x.name.toLowerCase() === order[1].toLowerCase())?.name
+    if (f) rows = [...rows].sort((a, b) => (a[f] < b[f] ? -1 : a[f] > b[f] ? 1 : 0) * (order[2] ? -1 : 1))
+  }
+  const limit = /\bLIMIT\s+(\d+)\s*$/i.exec(q)
+  if (limit) rows = rows.slice(0, Number(limit[1]))
+  // Keep only what was selected: plain fields, the first part of a relationship path, subquery relationships.
+  const keep = new Set(['attributes'])
+  for (const it of items ?? []) {
+    const sub = /^\(\s*SELECT[\s\S]+\bFROM\s+(\w+)/i.exec(it.text)
+    keep.add((sub ? sub[1] : it.text.split('.')[0]).toLowerCase())
+  }
+  return items ? rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => keep.has(k.toLowerCase())))) : rows
+}
+
+let lastResult = ACCOUNTS
 const page = (offset) => ({
-  totalSize: TOTAL,
-  done: offset + PAGE >= TOTAL,
-  ...(offset + PAGE < TOTAL ? { nextRecordsUrl: `/services/data/v62.0/query/01gMOCK-${offset + PAGE}` } : {}),
-  records: Array.from({ length: Math.min(PAGE, TOTAL - offset) }, (_, k) => account(offset + k + 1))
+  totalSize: lastResult.length,
+  done: offset + PAGE >= lastResult.length,
+  ...(offset + PAGE < lastResult.length ? { nextRecordsUrl: `/services/data/v62.0/query/01gMOCK-${offset + PAGE}` } : {}),
+  records: lastResult.slice(offset, offset + PAGE)
 })
 
 const send = (res, status, body, headers = {}) => {
@@ -153,6 +235,10 @@ createServer((req, res) => {
     if (/\bFRO\b/i.test(q)) {
       return send(res, 400, [{ errorCode: 'MALFORMED_QUERY', message: `\n${q}\n ^\nERROR at Row:1:Column:11\nunexpected token: FRO` }])
     }
+    const items = selectItems(q)
+    const invalid = items && invalidField(q, items)
+    if (invalid) return send(res, 400, [invalid])
+    lastResult = runAccountQuery(q, items)
     return send(res, 200, page(0))
   }
   const more = /^\/services\/data\/v62\.0\/query\/01gMOCK-(\d+)$/.exec(p)

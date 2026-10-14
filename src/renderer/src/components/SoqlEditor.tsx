@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { toggleLineComments } from '../../../soql/comments'
-import { parseErrorPosition } from '../../../soql/format'
+import { errorDetail, parseErrorPosition } from '../../../soql/format'
 import { monaco, SOQL, THEME } from '../monaco/setup'
 
 export interface SoqlEditorHandle {
@@ -111,7 +111,7 @@ export const SoqlEditor = forwardRef<SoqlEditorHandle, Props>(function SoqlEdito
     monaco.editor.setModelMarkers(model, 'salesforce', [
       {
         severity: monaco.MarkerSeverity.Error,
-        message: error!,
+        message: errorDetail(error!),
         startLineNumber: pos.line,
         startColumn: word?.startColumn ?? column,
         endLineNumber: pos.line,
