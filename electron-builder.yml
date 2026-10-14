@@ -9,6 +9,7 @@ files:
   - package.json
 win:
   target: nsis
+  artifactName: ${productName}-${version}-windows-x64-setup.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
@@ -16,8 +17,8 @@ mac:
   target:
     - target: dmg
       arch: [x64, arm64]
-    - target: zip
-      arch: [x64, arm64]
+  # The build workflow renames the architecture to "apple-silicon" / "intel" (no macro for that).
+  artifactName: ${productName}-${version}-macos-${arch}.${ext}
   category: public.app-category.developer-tools
   # Ad-hoc signature: required for Apple Silicon to start the app at all. Not notarized, so Gatekeeper asks once.
   identity: '-'
@@ -25,6 +26,8 @@ mac:
   hardenedRuntime: false
 linux:
   target: [AppImage, deb, tar.gz]
+  # Fixed "x64": each Linux format spells the architecture differently (x86_64, amd64, x64).
+  artifactName: ${productName}-${version}-linux-x64.${ext}
   category: Development
   maintainer: Querynator <noreply@querynator.local>
   synopsis: Desktop SOQL client for Salesforce

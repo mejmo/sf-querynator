@@ -55,10 +55,10 @@ keys are encrypted with the OS keychain, and exports never contain secrets.
 
 Download the installer for your system from the **[latest release](https://github.com/mejmo/sf-querynator/releases/latest)**:
 
-- **Windows** — `Querynator Setup x.y.z.exe`. If SmartScreen warns, click **More info → Run anyway**.
-- **macOS** — `Querynator-x.y.z-arm64.dmg` (Apple Silicon) or `Querynator-x.y.z.dmg` (Intel).
+- **Windows** — `Querynator-x.y.z-windows-x64-setup.exe`. If SmartScreen warns, click **More info → Run anyway**.
+- **macOS** — `Querynator-x.y.z-macos-apple-silicon.dmg` (M1 and newer) or `Querynator-x.y.z-macos-intel.dmg`.
   [How to open an app from an unidentified developer](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unidentified-developer-mh40616/mac)
-- **Linux** — `querynator_x.y.z_amd64.deb` (`sudo apt install ./querynator_*.deb`) or the `.AppImage` (`chmod +x`, then run).
+- **Linux** — `Querynator-x.y.z-linux-x64.deb` (`sudo apt install ./Querynator-*.deb`), the `.AppImage` (`chmod +x`, then run) or the `.tar.gz`.
 
 All versions: [Releases](https://github.com/mejmo/sf-querynator/releases)
 

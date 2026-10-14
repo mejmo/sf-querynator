@@ -94,13 +94,27 @@ jobs:
           Write-Host "$($exe.Name): $($sig.Status) — $($sig.SignerCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { throw "Installer signature is $($sig.Status)" }
 
+      - name: Name macOS installers by chip
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # electron-builder may leave the arch out for x64 ("…-macos.dmg"), so match both forms.
+          for f in dist/*-macos*.dmg; do
+            case "$f" in
+              *-macos-arm64.dmg) mv "$f" "${f%-arm64.dmg}-apple-silicon.dmg" ;;
+              *-macos-x64.dmg) mv "$f" "${f%-x64.dmg}-intel.dmg" ;;
+              *-macos.dmg) mv "$f" "${f%.dmg}-intel.dmg" ;;
+            esac
+          done
+          ls dist/*.dmg
+          [ -n "$(ls dist/*-apple-silicon.dmg)" ] && [ -n "$(ls dist/*-intel.dmg)" ]
+
       - uses: actions/upload-artifact@v7
         with:
           name: querynator-${{ runner.os }}
           path: |
             dist/*.exe
             dist/*.dmg
-            dist/*.zip
             dist/*.AppImage
             dist/*.deb
             dist/*.tar.gz
