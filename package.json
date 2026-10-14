@@ -40,5 +40,10 @@
   },
   "homepage": "https://querynator.local",
   "desktopName": "querynator.desktop",
-  "license": "MIT"
+  "license": "MIT",
+  "overrides": {
+    "http-cache-semantics": "^4.3.0",
+    "dompurify": "^3.4.17",
+    "global-agent": "^4.1.3"
+  }
 }
