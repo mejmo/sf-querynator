@@ -105,6 +105,8 @@ jobs:
             dist/*.deb
             dist/*.tar.gz
           if-no-files-found: error
+          # Only a hand-off to the release job (the Release keeps the installers); don't fill the artifact quota.
+          retention-days: 1
 
   release:
     # One job uploads everything, so the platform builds don't race to create the Release.

@@ -71,3 +71,4 @@ jobs:
         with:
           name: electronegativity-report
           path: electronegativity.csv
+          retention-days: 7
