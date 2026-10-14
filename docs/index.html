@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Querynator — Desktop SOQL client for Salesforce</title>
+    <meta name="description" content="Free desktop SOQL client for Salesforce with autocomplete, results grid, object browser and Fix with AI. Windows, macOS and Linux." />
+    <meta property="og:title" content="Querynator — Desktop SOQL client for Salesforce" />
+    <meta property="og:description" content="Autocomplete, results grid, object browser and Fix with AI. Windows, macOS and Linux." />
+    <meta property="og:image" content="https://mejmo.github.io/sf-querynator/images/results.png" />
+    <meta name="theme-color" content="#17151f" />
+    <link rel="icon" href="images/icon.png" />
+    <style>
+      :root {
+        --purple: #8346ec;
+        --purple-hover: #9563f2;
+        --blue: #0981e8;
+        --bg: #17151f;
+        --panel: #1e1b29;
+        --elev: #272336;
+        --border: #383149;
+        --text: #e6e2f0;
+        --dim: #a19bb6;
+        --faint: #6c6682;
+        --link: #4ea6f7;
+        --mono: 'Cascadia Code', Consolas, 'SF Mono', Menlo, monospace;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      a { color: var(--link); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      code { font-family: var(--mono); font-size: 0.9em; background: var(--elev); padding: 1px 6px; border-radius: 4px; }
+      .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+      nav { position: sticky; top: 0; z-index: 10; background: rgba(23, 21, 31, 0.88); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+      nav .wrap { display: flex; align-items: center; gap: 24px; height: 56px; }
+      nav .brand { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 700; margin-right: auto; }
+      nav .brand img { width: 28px; height: 28px; }
+      nav a.link { color: var(--dim); font-size: 15px; }
+      nav a.link:hover { color: var(--text); text-decoration: none; }
+
+      header.hero {
+        text-align: center;
+        padding: 64px 0 40px;
+        background: radial-gradient(90% 70% at 50% 0%, #2a2140 0%, var(--bg) 70%);
+      }
+      .hero .logo { width: min(560px, 100%); height: auto; }
+      .hero p.tag { font-size: 20px; color: var(--dim); margin: 20px auto 32px; max-width: 640px; }
+      .buttons { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+      .btn {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 12px 22px; border-radius: 10px; font-weight: 600; font-size: 16px;
+        border: 1px solid var(--border); background: var(--elev); color: var(--text);
+      }
+      .btn:hover { text-decoration: none; background: #312b45; }
+      .btn.primary { background: var(--purple); border-color: var(--purple); color: #fff; }
+      .btn.primary:hover { background: var(--purple-hover); }
+      .hero .meta { margin-top: 14px; color: var(--faint); font-size: 14px; }
+
+      .shot { margin: 48px auto 0; max-width: 1040px; }
+      .shot img, .gallery img {
+        display: block; width: 100%; height: auto;
+        border: 1px solid var(--border); border-radius: 12px;
+        box-shadow: 0 24px 60px rgba(8, 4, 20, 0.6);
+      }
+
+      section { padding: 72px 0; }
+      section h2 { font-size: 30px; margin: 0 0 8px; text-align: center; }
+      section p.lead { text-align: center; color: var(--dim); margin: 0 auto 40px; max-width: 640px; }
+
+      .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+      .feature { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+      .feature h3 { margin: 0 0 6px; font-size: 17px; }
+      .feature h3 span { color: var(--purple-hover); margin-right: 8px; }
+      .feature p { margin: 0; color: var(--dim); font-size: 15px; }
+
+      .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+      .gallery figure { margin: 0; }
+      .gallery figcaption { text-align: center; color: var(--dim); font-size: 15px; margin-top: 12px; }
+
+      .downloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+      .platform { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+      .platform.current { border-color: var(--purple); }
+      .platform h3 { margin: 0 0 14px; font-size: 19px; }
+      .platform .btn { width: 100%; justify-content: center; margin-bottom: 10px; }
+      .platform p { margin: 6px 0 0; color: var(--dim); font-size: 14px; }
+
+      .auth { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+
+      footer { border-top: 1px solid var(--border); padding: 28px 0; color: var(--faint); font-size: 14px; }
+      footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+
+      @media (max-width: 640px) {
+        nav a.link.optional { display: none; }
+        header.hero { padding-top: 40px; }
+        .hero p.tag { font-size: 18px; }
+        section { padding: 52px 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="wrap">
+        <a class="brand" href="#"><img src="images/icon.png" alt="" />Querynator</a>
+        <a class="link optional" href="#features">Features</a>
+        <a class="link" href="#download">Download</a>
+        <a class="link" href="https://github.com/mejmo/sf-querynator">GitHub</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div class="wrap">
+        <img class="logo" src="images/logo.png" alt="Querynator — Salesforce SOQL" width="1200" height="291" />
+        <p class="tag">A fast desktop SOQL client for Salesforce. Autocomplete that knows your org, a proper results grid, and AI that fixes broken queries.</p>
+        <div class="buttons">
+          <a class="btn primary" id="hero-download" href="#download">Download</a>
+          <a class="btn" href="https://github.com/mejmo/sf-querynator">View on GitHub</a>
+        </div>
+        <div class="meta" id="hero-meta">Free and open source · Windows, macOS, Linux</div>
+        <div class="shot"><img src="images/results.png" alt="Query results in Querynator" width="1384" height="861" /></div>
+      </div>
+    </header>
+
+    <section id="features">
+      <div class="wrap">
+        <h2>Everything you need for SOQL</h2>
+        <p class="lead">Built for developers and admins who live in queries.</p>
+        <div class="features">
+          <div class="feature">
+            <h3><span>⌨</span>Context-aware autocomplete</h3>
+            <p>Fields, relationships, child subqueries, picklist values and date literals, all based on the object in your FROM clause.</p>
+          </div>
+          <div class="feature">
+            <h3><span>▦</span>Results grid</h3>
+            <p>Load more, drill into subqueries, resize and reorder columns, export to CSV, JSON or the clipboard.</p>
+          </div>
+          <div class="feature">
+            <h3><span>✨</span>Fix with AI</h3>
+            <p>Send a failing query and the error to OpenAI, then review the fix side by side before accepting it.</p>
+          </div>
+          <div class="feature">
+            <h3><span>◫</span>Objects browser</h3>
+            <p>Browse objects, fields, types, picklist values and child relationships, then query the fields you picked.</p>
+          </div>
+          <div class="feature">
+            <h3><span>⇄</span>Many orgs, many users</h3>
+            <p>Several environments, several users per environment, with JSON import and export to share setups.</p>
+          </div>
+          <div class="feature">
+            <h3><span>🔒</span>Secure by default</h3>
+            <p>Tokens and keys are encrypted with the OS keychain. Everything runs locally; there is no Querynator server.</p>
+          </div>
+          <div class="feature">
+            <h3><span>☰</span>Editor comforts</h3>
+            <p>Syntax highlighting, Beautify, <code>//</code> comments with Ctrl+/, error markers and searchable query history.</p>
+          </div>
+          <div class="feature">
+            <h3><span>⚿</span>Flexible sign-in</h3>
+            <p>Salesforce OAuth with PKCE, Azure AD SSO via a token service, or simply paste an access token.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="screenshots" style="padding-top: 0">
+      <div class="wrap">
+        <div class="gallery">
+          <figure>
+            <img src="images/autocomplete.png" alt="Picklist autocomplete" width="1384" height="861" loading="lazy" />
+            <figcaption>Autocomplete with picklist values</figcaption>
+          </figure>
+          <figure>
+            <img src="images/objects.png" alt="Objects tab" width="1384" height="861" loading="lazy" />
+            <figcaption>Objects tab</figcaption>
+          </figure>
+          <figure>
+            <img src="images/ai-fix.png" alt="Fix with AI diff" width="1384" height="861" loading="lazy" />
+            <figcaption>Fix with AI</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="download">
+      <div class="wrap">
+        <h2>Download</h2>
+        <p class="lead" id="download-lead">Pick the installer for your system.</p>
+        <div class="downloads">
+          <div class="platform" data-os="windows">
+            <h3>Windows</h3>
+            <a class="btn primary" data-asset="windows-x64-setup.exe" href="https://github.com/mejmo/sf-querynator/releases/latest">Installer (64-bit)</a>
+            <p>Signed by DevelMagic s.r.o. If SmartScreen warns, click <em>More info → Run anyway</em>.</p>
+          </div>
+          <div class="platform" data-os="mac">
+            <h3>macOS</h3>
+            <a class="btn primary" data-asset="macos-apple-silicon.dmg" href="https://github.com/mejmo/sf-querynator/releases/latest">Apple Silicon (M1 and newer)</a>
+            <a class="btn" data-asset="macos-intel.dmg" href="https://github.com/mejmo/sf-querynator/releases/latest">Intel</a>
+            <p>Not notarized: the first time, right-click the app and choose <em>Open</em>. <a href="https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unidentified-developer-mh40616/mac">More</a></p>
+          </div>
+          <div class="platform" data-os="linux">
+            <h3>Linux</h3>
+            <a class="btn primary" data-asset="linux-x64.deb" href="https://github.com/mejmo/sf-querynator/releases/latest">.deb (Debian, Ubuntu)</a>
+            <a class="btn" data-asset="linux-x64.AppImage" href="https://github.com/mejmo/sf-querynator/releases/latest">AppImage</a>
+            <a class="btn" data-asset="linux-x64.tar.gz" href="https://github.com/mejmo/sf-querynator/releases/latest">.tar.gz</a>
+          </div>
+        </div>
+        <p class="lead" style="margin-top: 24px; margin-bottom: 0"><a href="https://github.com/mejmo/sf-querynator/releases">All releases</a></p>
+      </div>
+    </section>
+
+    <section id="setup" style="padding-top: 0">
+      <div class="wrap">
+        <h2>Connect to your org</h2>
+        <p class="lead">Open <strong>Settings → Add environment</strong> and choose how to sign in.</p>
+        <div class="auth">
+          <div class="feature">
+            <h3>Salesforce OAuth</h3>
+            <p>Create a Connected App with PKCE and callback <code>http://localhost:1717/oauth/callback</code>, then paste its consumer key.</p>
+          </div>
+          <div class="feature">
+            <h3>Access token</h3>
+            <p>Set the instance URL and paste a token, e.g. from <code>sf org display</code>. No app setup needed.</p>
+          </div>
+          <div class="feature">
+            <h3>Azure SSO</h3>
+            <p>For orgs behind a service that exchanges Azure AD tokens for Salesforce tokens.</p>
+          </div>
+        </div>
+        <p class="lead" style="margin-top: 24px; margin-bottom: 0"><a href="https://github.com/mejmo/sf-querynator#setup">Full setup guide</a></p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <span>© DevelMagic s.r.o. · <a href="https://github.com/mejmo/sf-querynator/blob/main/LICENSE">MIT License</a></span>
+        <span>Not affiliated with Salesforce, Inc.</span>
+      </div>
+    </footer>
+
+    <script>
+      // Point the buttons at the files of the latest release; without the API they keep linking to the release page.
+      ;(function () {
+        var ua = navigator.userAgent
+        var os = /Windows/.test(ua) ? 'windows' : /Mac/.test(ua) ? 'mac' : /Linux|X11/.test(ua) && !/Android/.test(ua) ? 'linux' : null
+        var names = { windows: 'Windows', mac: 'macOS', linux: 'Linux' }
+        if (os) {
+          document.querySelector('.platform[data-os="' + os + '"]').classList.add('current')
+          document.getElementById('hero-download').textContent = 'Download for ' + names[os]
+        }
+        fetch('https://api.github.com/repos/mejmo/sf-querynator/releases/latest')
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status) })
+          .then(function (release) {
+            document.querySelectorAll('[data-asset]').forEach(function (a) {
+              var suffix = a.getAttribute('data-asset')
+              var asset = release.assets.find(function (x) { return x.name.slice(-suffix.length) === suffix })
+              if (asset) a.href = asset.browser_download_url
+            })
+            var version = release.tag_name.replace(/^v/, '')
+            document.getElementById('hero-meta').textContent = 'Version ' + version + ' · Free and open source · Windows, macOS, Linux'
+            document.getElementById('download-lead').textContent = 'Version ' + version + '. Pick the installer for your system.'
+          })
+          .catch(function () {})
+      })()
+    </script>
+  </body>
