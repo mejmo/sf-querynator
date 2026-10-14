@@ -17,13 +17,13 @@
     "dist:linux": "npm run build && docker run --rm -v \"%cd%:/project\" -v /project/node_modules -v qn-electron-cache:/root/.cache -w /project electronuserland/builder:latest bash -c \"npm ci --ignore-scripts --no-audit --no-fund && npx electron-builder --linux --x64\""
   },
   "devDependencies": {
-    "@jetstreamapp/soql-parser-js": "^8.1.1",
-    "@tanstack/react-virtual": "^3.14.13",
-    "@types/node": "^24.19.0",
+    "@jetstreamapp/soql-parser-js": "^8.1.2",
+    "@tanstack/react-virtual": "^3.14.15",
+    "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
-    "electron": "^44.5.1",
+    "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "monaco-editor": "^0.57.0",
@@ -31,7 +31,7 @@
     "react-dom": "^19.3.0",
     "typescript": "~7.0.2",
     "vite": "^7.3.6",
-    "vitest": "^5.0.2",
+    "vitest": "^5.0.3",
     "zustand": "^5.0.15"
   },
   "author": {
